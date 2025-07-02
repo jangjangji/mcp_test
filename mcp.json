@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+      "mcp-test": {
+        "command": "/home/jang/mcp_test/python_mcp_agent/venv/bin/python",
+        "args": [
+          "/home/jang/mcp_test/python_mcp_agent/2_mcp_server.py"
+        ]
+      }
+    }
+  }
