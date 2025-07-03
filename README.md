@@ -155,6 +155,8 @@ streamlit run 4_mcp_client.py
 pip install --upgrade pip
 pip install mcp openai-agents streamlit youtube-transcript-api python-dotenv requests
 ```
+### 클라이언트 실행 명령어
+streamlit run 4_mcp_client.py
 
 ## 참고 자료
 
