@@ -165,5 +165,3 @@ streamlit run 4_mcp_client.py
 - [YouTube Data API](https://developers.google.com/youtube/v3)
 
 ---
-
-**참고**: 이 프로젝트는 교육 및 개발 목적으로 제작되었습니다. YouTube API 사용 시 해당 서비스의 이용약관을 준수해 주세요.
