@@ -1,4 +1,6 @@
 from mcp.server.fastmcp import FastMCP
+import time
+import openai
 from youtube_transcript_api._api import YouTubeTranscriptApi
 from supabase import create_client, Client
 import xml.etree.ElementTree as ET
@@ -7,6 +9,7 @@ import requests
 import re
 from dotenv import load_dotenv
 import os
+import numpy as np
 load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -166,8 +169,6 @@ def get_channel_info(video_url: str) -> dict:
 @mcp.tool()
 def save_channel_youtube_embeddings(channel_id: str) -> str:
     """YouTube 채널 ID 기반으로 100개 영상의 title을 임베딩하고 supabase에 저장"""
-    import time
-    import openai
     openai.api_key = os.getenv("OPENAI_API_KEY")
     max_results = 3
     video_ids = []
@@ -200,11 +201,11 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
 
     count = 0
     # 2. 상세 정보 조회 및 임베딩/저장
-    for i in range(0, len(video_ids), 50):
+    for i in range(0, len(video_ids), 50): ## range(start, stop, step) 시작,끝값,간격
         batch_ids = video_ids[i:i + 50]
         details_url = f"{YOUTUBE_API_URL}/videos?part=snippet&id={','.join(batch_ids)}&key={YOUTUBE_API_KEY}"
-        details_resp = requests.get(details_url)
-        details_resp.raise_for_status()
+        details_resp = requests.get(details_url) 
+        details_resp.raise_for_status() ## HTTP 에러 발생 시 예외 발생
         video_data = details_resp.json()
 
         for video in video_data.get("items", []):
@@ -248,6 +249,35 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
                 continue
 
     return f"총 {count}개 영상이 저장되었습니다."
+
+
+@mcp.tool()
+def search_similar_youtube_video(query: str) -> dict:
+    """검색어를 임베딩하고 Supabase RPC를 통해 가장 유사한 영상 1개를 반환"""
+
+    try:
+        # 1. OpenAI를 사용해 쿼리 임베딩 생성
+        embedding_response = openai.embeddings.create(
+            input=query,
+            model="text-embedding-3-small"  # 또는 text-embedding-ada-002
+        )
+        embedding = embedding_response.data[0].embedding
+
+        # 2. Supabase RPC 호출 (input_vector는 JSON 형태 리스트 그대로 넘김)
+        response = supabase.rpc("match_youtube_video", {
+            "input_vector": embedding
+        }).execute()
+
+        # 3. 결과 반환
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            return {"error": "No similar video found."}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
 
 
 if __name__ == "__main__":
