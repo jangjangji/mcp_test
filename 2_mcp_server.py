@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._api import YouTubeTranscriptApi
+from supabase import create_client, Client
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import requests
@@ -10,6 +11,9 @@ load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3'
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 # Create an MCP server
@@ -155,6 +159,95 @@ def get_channel_info(video_url: str) -> dict:
         'videoCount': channel_data['statistics'].get('videoCount', '0'),
         'videos': fetch_recent_videos(channel_id)
     }
+
+
+# 이미 상단에 import, 환경설정, supabase client 생성이 있으므로 아래 중복 제거
+
+@mcp.tool()
+def save_channel_youtube_embeddings(channel_id: str) -> str:
+    """YouTube 채널 ID 기반으로 100개 영상의 title을 임베딩하고 supabase에 저장"""
+    import time
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    max_results = 3
+    video_ids = []
+    next_page_token = ""
+
+    # 1. 채널 영상 videoId 수집
+    while len(video_ids) < max_results:
+        search_url = (
+            f"{YOUTUBE_API_URL}/search?part=snippet&channelId={channel_id}"
+            f"&maxResults=50&order=date&type=video&key={YOUTUBE_API_KEY}"
+        )
+        if next_page_token:
+            search_url += f"&pageToken={next_page_token}"
+        resp = requests.get(search_url)
+        data = resp.json()
+        for item in data.get("items", []):
+            vid = item["id"]["videoId"]
+            if vid not in video_ids:
+                video_ids.append(vid)
+                if len(video_ids) >= max_results:
+                    break
+        next_page_token = data.get("nextPageToken")
+        if not next_page_token:
+            break
+
+    print(f"[✔] 총 {len(video_ids)}개 영상 수집 완료")
+
+    if not video_ids:
+        return "영상이 없습니다."
+
+    count = 0
+    # 2. 상세 정보 조회 및 임베딩/저장
+    for i in range(0, len(video_ids), 50):
+        batch_ids = video_ids[i:i + 50]
+        details_url = f"{YOUTUBE_API_URL}/videos?part=snippet&id={','.join(batch_ids)}&key={YOUTUBE_API_KEY}"
+        details_resp = requests.get(details_url)
+        details_resp.raise_for_status()
+        video_data = details_resp.json()
+
+        for video in video_data.get("items", []):
+            video_id = video["id"]
+            title = video["snippet"]["title"]
+            url = f"https://www.youtube.com/watch?v={video_id}"
+
+            # 중복 확인
+            try:
+                existing = supabase.table("youtube_videos").select("video_id").eq("video_id", video_id).execute()
+                if existing.data:
+                    print(f"[SKIP] 중복: {video_id}")
+                    continue
+            except Exception as e:
+                print(f"[ERR] 중복 확인 실패: {e}")
+                continue
+
+            # OpenAI 임베딩
+            try:
+                time.sleep(1)  # rate limit 회피
+                embedding = openai.embeddings.create(
+                    input=title,
+                    model="text-embedding-3-small"
+                ).data[0].embedding
+            except Exception as e:
+                print(f"[ERR] 임베딩 실패: {title} - {e}")
+                continue
+
+            # Supabase 저장
+            try:
+                supabase.table("youtube_videos").insert({
+                    "video_id": video_id,
+                    "url": url,
+                    "title": title,
+                    "embedding": embedding
+                }).execute()
+                print(f"[SAVE] 저장 완료: {video_id}")
+                count += 1
+            except Exception as e:
+                print(f"[ERR] 저장 실패: {video_id} - {e}")
+                continue
+
+    return f"총 {count}개 영상이 저장되었습니다."
 
 
 if __name__ == "__main__":
