@@ -8,7 +8,7 @@ from agents.mcp import MCPServerStdio
 from dotenv import load_dotenv
 load_dotenv()
 # Windows 호환성
-if sys.platform == "win32":
+if sys.platform == "win32": #I/0 입출력 문제를 방지하기 위해 루프정책 변경 
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # MCP 서버 설정
@@ -17,7 +17,7 @@ async def setup_mcp_servers():
     
     # mcp.json 파일에서 설정 읽기
     with open('mcp.json', 'r') as f:
-        config = json.load(f)
+        config = json.load(f) # JSON 형식의 문자열을 Python 딕셔너리로 변환
     
     # 구성된 MCP 서버들을 순회
     for server_name, server_config in config.get('mcpServers', {}).items():
@@ -41,7 +41,7 @@ async def setup_agent():
     
     agent = Agent(
         name="Assistant",
-        instructions="너는 유튜브 컨텐츠 분석을 도와주는 에이전트야",
+        instructions="너는 유튜브 컨텐츠 분석을 도와주는 에이전트야, 임베딩도 도와줘",
         model="gpt-4o-mini",
         mcp_servers=mcp_servers
     )
@@ -51,12 +51,12 @@ async def setup_agent():
 # 메시지 처리
 async def process_user_message():
     agent,mcp_servers = await setup_agent()
-    messages = st.session_state.chat_history
+    messages = st.session_state.chat_history #세션 전역 상태 저장 객체 
 
     result = Runner.run_streamed(agent, input=messages)
 
     response_text = ""
-    placeholder = st.empty()
+    placeholder = st.empty() # Streamlit의 임시 UI 공간 (응답이 업데이트될 자리)
 
     async for event in result.stream_events():
         # LLM 응답 토큰 스트리밍
