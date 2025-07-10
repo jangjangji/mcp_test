@@ -139,6 +139,19 @@ streamlit run 4_mcp_client.py
 - 최근 5개 동영상 목록
 - RSS 피드 활용
 
+### 4. **임베딩 기반 유사도 검색 (NEW)**
+- 검색어를 OpenAI 임베딩으로 변환
+- Supabase DB의 youtube_videos 테이블에서 embedding 컬럼과 유사도가 가장 높은 영상 row 1개 반환
+- pgvector 기반 코사인 유사도 검색
+
+#### 사용 예시 (MCP 클라이언트 또는 Python)
+```python
+from mcp.client.fastmcp import FastMCP
+client = FastMCP("youtube_agent_server", host="localhost", port=8000)
+result = client.search_similar_youtube_video("파스타 맛집")
+print(result)
+```
+
 ## 문제 해결
 
 ### MCP 서버가 인식되지 않는 경우
