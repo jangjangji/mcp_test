@@ -168,14 +168,14 @@ def get_channel_info(video_url: str) -> dict:
 
 @mcp.tool()
 def save_channel_youtube_embeddings(channel_id: str) -> str:
-    """YouTube 채널 ID 기반으로 100개 영상의 title을 임베딩하고 supabase에 저장"""
+    """YouTube 채널 ID 기반으로 최대 3개의 새로운 영상 title을 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""
     openai.api_key = os.getenv("OPENAI_API_KEY")
     max_results = 3
-    video_ids = []
+    new_video_ids = []
     next_page_token = ""
+    tried_video_ids = set()
 
-    # 1. 채널 영상 videoId 수집
-    while len(video_ids) < max_results:
+    while len(new_video_ids) < max_results:
         search_url = (
             f"{YOUTUBE_API_URL}/search?part=snippet&channelId={channel_id}"
             f"&maxResults=50&order=date&type=video&key={YOUTUBE_API_KEY}"
@@ -184,28 +184,39 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
             search_url += f"&pageToken={next_page_token}"
         resp = requests.get(search_url)
         data = resp.json()
-        for item in data.get("items", []):
-            vid = item["id"]["videoId"]
-            if vid not in video_ids:
-                video_ids.append(vid)
-                if len(video_ids) >= max_results:
+        page_video_ids = [item["id"]["videoId"] for item in data.get("items", [])]
+        if not page_video_ids:
+            break
+
+        # 이미 저장된 영상 조회
+        try:
+            resp_db = supabase.table("youtube_videos").select("video_id").in_("video_id", page_video_ids).execute()
+            existing_ids = set(row["video_id"] for row in resp_db.data)
+        except Exception as e:
+            print(f"[ERR] 기존 영상 조회 실패: {e}")
+            existing_ids = set()
+
+        for vid in page_video_ids:
+            if vid not in existing_ids and vid not in new_video_ids and vid not in tried_video_ids:
+                new_video_ids.append(vid)
+                if len(new_video_ids) >= max_results:
                     break
+            tried_video_ids.add(vid)
+
         next_page_token = data.get("nextPageToken")
         if not next_page_token:
             break
 
-    print(f"[✔] 총 {len(video_ids)}개 영상 수집 완료")
-
-    if not video_ids:
-        return "영상이 없습니다."
+    if not new_video_ids:
+        return "저장할 새로운 영상이 없습니다."
 
     count = 0
-    # 2. 상세 정보 조회 및 임베딩/저장
-    for i in range(0, len(video_ids), 50): ## range(start, stop, step) 시작,끝값,간격
-        batch_ids = video_ids[i:i + 50]
+    # 상세 정보 조회 및 임베딩/저장
+    for i in range(0, len(new_video_ids), 50):
+        batch_ids = new_video_ids[i:i + 50]
         details_url = f"{YOUTUBE_API_URL}/videos?part=snippet&id={','.join(batch_ids)}&key={YOUTUBE_API_KEY}"
-        details_resp = requests.get(details_url) 
-        details_resp.raise_for_status() ## HTTP 에러 발생 시 예외 발생
+        details_resp = requests.get(details_url)
+        details_resp.raise_for_status()
         video_data = details_resp.json()
 
         for video in video_data.get("items", []):
@@ -213,19 +224,9 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
             title = video["snippet"]["title"]
             url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # 중복 확인
-            try:
-                existing = supabase.table("youtube_videos").select("video_id").eq("video_id", video_id).execute()
-                if existing.data:
-                    print(f"[SKIP] 중복: {video_id}")
-                    continue
-            except Exception as e:
-                print(f"[ERR] 중복 확인 실패: {e}")
-                continue
-
             # OpenAI 임베딩
             try:
-                time.sleep(1)  # rate limit 회피
+                time.sleep(1)
                 embedding = openai.embeddings.create(
                     input=title,
                     model="text-embedding-3-small"
@@ -272,7 +273,7 @@ def search_similar_youtube_video(query: str) -> dict:
         if response.data and len(response.data) > 0:
             return response.data[0]
         else:
-            return {"error": "No similar video found."}
+            return {"error": "No similar video found."} 
 
     except Exception as e:
         import traceback
