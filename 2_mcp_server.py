@@ -166,11 +166,17 @@ def get_channel_info(video_url: str) -> dict:
 
 # 이미 상단에 import, 환경설정, supabase client 생성이 있으므로 아래 중복 제거
 
+# 자막 청킹 함수 추가
+
+def chunk_transcript(transcript: str, chunk_size: int = 300) -> list:
+    """자막 텍스트를 chunk_size(기본 300)자씩 나눠 리스트로 반환"""
+    return [transcript[i:i+chunk_size] for i in range(0, len(transcript), chunk_size)]
+
 @mcp.tool()
 def save_channel_youtube_embeddings(channel_id: str) -> str:
-    """YouTube 채널 ID 기반으로 최대 3개의 새로운 영상 title을 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""
+    """YouTube 채널 ID 기반으로 최대 100개의 새로운 영상 자막을 300자씩 청킹하여 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    max_results = 3
+    max_results = 100
     new_video_ids = []
     next_page_token = ""
     tried_video_ids = set()
@@ -221,46 +227,52 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
 
         for video in video_data.get("items", []):
             video_id = video["id"]
-            title = video["snippet"]["title"]
             url = f"https://www.youtube.com/watch?v={video_id}"
-
-            # OpenAI 임베딩
+            # 자막 가져오기
             try:
-                time.sleep(1)
-                embedding = openai.embeddings.create(
-                    input=title,
-                    model="text-embedding-3-small"
-                ).data[0].embedding
+                transcript = get_youtube_transcript(url)
             except Exception as e:
-                print(f"[ERR] 임베딩 실패: {title} - {e}")
+                print(f"[ERR] 자막 가져오기 실패: {video_id} - {e}")
                 continue
+            # 300자씩 청킹
+            chunks = chunk_transcript(transcript, chunk_size=300)
+            for chunk_idx, chunk in enumerate(chunks):
+                # OpenAI 임베딩
+                try:
+                    time.sleep(1)
+                    embedding = openai.embeddings.create(
+                        input=chunk,
+                        model="text-embedding-3-small"
+                    ).data[0].embedding
+                except Exception as e:
+                    print(f"[ERR] 임베딩 실패: {video_id} chunk {chunk_idx} - {e}")
+                    continue
+                # Supabase 저장
+                try:
+                    supabase.table("youtube_videos").insert({
+                        "video_id": video_id,
+                        "url": url,
+                        "chunk_index": chunk_idx,
+                        "chunk_text": chunk,
+                        "embedding": embedding
+                    }).execute()
+                    print(f"[SAVE] 저장 완료: {video_id} chunk {chunk_idx}")
+                    count += 1
+                except Exception as e:
+                    print(f"[ERR] 저장 실패: {video_id} chunk {chunk_idx} - {e}")
+                    continue
 
-            # Supabase 저장
-            try:
-                supabase.table("youtube_videos").insert({
-                    "video_id": video_id,
-                    "url": url,
-                    "title": title,
-                    "embedding": embedding
-                }).execute()
-                print(f"[SAVE] 저장 완료: {video_id}")
-                count += 1
-            except Exception as e:
-                print(f"[ERR] 저장 실패: {video_id} - {e}")
-                continue
-
-    return f"총 {count}개 영상이 저장되었습니다."
+    return f"총 {count}개 자막 청크가 저장되었습니다."
 
 
 @mcp.tool()
 def search_similar_youtube_video(query: str) -> dict:
-    """검색어를 임베딩하고 Supabase RPC를 통해 가장 유사한 영상 1개를 반환"""
-
+    """검색어를 임베딩하고 Supabase RPC를 통해 가장 유사한 자막 청크(및 비디오) 정보를 반환"""
     try:
         # 1. OpenAI를 사용해 쿼리 임베딩 생성
         embedding_response = openai.embeddings.create(
             input=query,
-            model="text-embedding-3-small"  # 또는 text-embedding-ada-002
+            model="text-embedding-3-small"
         )
         embedding = embedding_response.data[0].embedding
 
@@ -271,9 +283,16 @@ def search_similar_youtube_video(query: str) -> dict:
 
         # 3. 결과 반환
         if response.data and len(response.data) > 0:
-            return response.data[0]
+            result = response.data[0]
+            return {
+                "video_id": result.get("video_id"),
+                "url": result.get("url"),
+                "chunk_index": result.get("chunk_index"),
+                "chunk_text": result.get("chunk_text"),
+                "score": result.get("score", None)
+            }
         else:
-            return {"error": "No similar video found."} 
+            return {"error": "No similar video found."}
 
     except Exception as e:
         import traceback
