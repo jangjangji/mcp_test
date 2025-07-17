@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "mcp-test": {
+      "command": "/home/jang/mcp_test/python_mcp_agent/venv/bin/python",
+      "args": [
+        "/home/jang/mcp_test/python_mcp_agent/2_mcp_server.py"
+      ]
+    },
+    "supabase": {
+      "command": "wsl",
+      "args": [
+        "npx",
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--read-only",
+        "--project-ref=qkwqilxmwyethocfzofq"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_a689450e84f2f5d42b03bfe356e0d9d959bcbe0d"
+      }
+    }
+  }
+} 
