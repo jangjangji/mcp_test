@@ -30,6 +30,7 @@ async def setup_mcp_servers():
         )
         await mcp_server.connect()
         servers.append(mcp_server)
+        
 
     return servers
 
@@ -86,6 +87,7 @@ async def process_user_message():
 
 # Streamlit UI 메인
 def main():
+    
     st.set_page_config(page_title="유튜브 에이전트", page_icon="🎥")
 
     if "chat_history" not in st.session_state:
@@ -110,4 +112,5 @@ def main():
         
 
 if __name__ == "__main__":
+    
     main()
