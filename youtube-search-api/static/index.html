@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Search API</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .card {
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .video-card {
+            height: 100%;
+        }
+        .thumbnail {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .loading {
+            display: none;
+        }
+        .result-section {
+            margin-top: 2rem;
+        }
+        .nav-tabs .nav-link {
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 bg-light p-4" style="min-height: 100vh;">
+                <h3 class="mb-4">
+                    <i class="fab fa-youtube text-danger"></i>
+                    YouTube Search API
+                </h3>
+                
+                <ul class="nav nav-tabs flex-column" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button" role="tab">
+                            <i class="fas fa-search"></i> 유사도 검색
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="youtube-search-tab" data-bs-toggle="tab" data-bs-target="#youtube-search" type="button" role="tab">
+                            <i class="fab fa-youtube"></i> YouTube 검색
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="channel-tab" data-bs-toggle="tab" data-bs-target="#channel" type="button" role="tab">
+                            <i class="fas fa-tv"></i> 채널 정보
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transcript-tab" data-bs-toggle="tab" data-bs-target="#transcript" type="button" role="tab">
+                            <i class="fas fa-closed-captioning"></i> 자막 가져오기
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="save-channel-tab" data-bs-toggle="tab" data-bs-target="#save-channel" type="button" role="tab">
+                            <i class="fas fa-save"></i> 채널 저장
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 p-4">
+                <div class="tab-content" id="myTabContent">
+                    <!-- 유사도 검색 -->
+                    <div class="tab-pane fade show active" id="search" role="tabpanel">
+                        <h4>유사도 검색</h4>
+                        <p class="text-muted">검색어와 유사한 YouTube 자막을 찾습니다.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="searchQuery" placeholder="검색어를 입력하세요...">
+                                    <button class="btn btn-primary" type="button" onclick="searchSimilar()">
+                                        <i class="fas fa-search"></i> 검색
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading" id="searchLoading">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="searchResult" class="result-section"></div>
+                    </div>
+
+                    <!-- YouTube 검색 -->
+                    <div class="tab-pane fade" id="youtube-search" role="tabpanel">
+                        <h4>YouTube 검색</h4>
+                        <p class="text-muted">YouTube에서 동영상을 검색합니다.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="youtubeSearchQuery" placeholder="YouTube 검색어를 입력하세요...">
+                                    <button class="btn btn-primary" type="button" onclick="searchYouTube()">
+                                        <i class="fab fa-youtube"></i> 검색
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading" id="youtubeSearchLoading">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="youtubeSearchResult" class="result-section"></div>
+                    </div>
+
+                    <!-- 채널 정보 -->
+                    <div class="tab-pane fade" id="channel" role="tabpanel">
+                        <h4>채널 정보</h4>
+                        <p class="text-muted">YouTube 영상 URL로 채널 정보를 가져옵니다.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="channelVideoUrl" placeholder="YouTube 영상 URL을 입력하세요...">
+                                    <button class="btn btn-primary" type="button" onclick="getChannelInfo()">
+                                        <i class="fas fa-tv"></i> 채널 정보 가져오기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading" id="channelLoading">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="channelResult" class="result-section"></div>
+                    </div>
+
+                    <!-- 자막 가져오기 -->
+                    <div class="tab-pane fade" id="transcript" role="tabpanel">
+                        <h4>자막 가져오기</h4>
+                        <p class="text-muted">YouTube 영상의 자막을 가져옵니다.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="transcriptUrl" placeholder="YouTube 영상 URL을 입력하세요...">
+                                    <button class="btn btn-primary" type="button" onclick="getTranscript()">
+                                        <i class="fas fa-closed-captioning"></i> 자막 가져오기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading" id="transcriptLoading">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="transcriptResult" class="result-section"></div>
+                    </div>
+
+                    <!-- 채널 저장 -->
+                    <div class="tab-pane fade" id="save-channel" role="tabpanel">
+                        <h4>채널 저장</h4>
+                        <p class="text-muted">채널의 모든 영상 자막을 임베딩하여 저장합니다.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group mb-3">
+                                    <input type="text" class="form-control" id="saveChannelId" placeholder="채널 ID를 입력하세요...">
+                                    <button class="btn btn-primary" type="button" onclick="saveChannel()">
+                                        <i class="fas fa-save"></i> 채널 저장
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="loading" id="saveChannelLoading">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="saveChannelResult" class="result-section"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html> 
