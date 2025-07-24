@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/jang/mcp_test/python_mcp_agent/venv/bin/python
 """
 MCP Client for Rust Backend
 Rust 서버에서 Python MCP 함수들을 호출하기 위한 클라이언트
@@ -20,7 +20,11 @@ def call_mcp_function(function_name, args):
         # Python 경로에 현재 디렉토리 추가
         sys.path.insert(0, os.getcwd())
         
-        # mcp_server.py를 직접 import
+        # mcp_server.py를 강제로 다시 로드
+        import importlib
+        if 'mcp_server' in sys.modules:
+            importlib.reload(sys.modules['mcp_server'])
+        
         import importlib.util
         spec = importlib.util.spec_from_file_location("mcp_server", "mcp_server.py")
         mcp_server = importlib.util.module_from_spec(spec)
