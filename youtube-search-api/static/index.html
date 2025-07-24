@@ -3,220 +3,693 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Search API</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <title>YouTube AI Pro - 유튜브 분석 플랫폼</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        .card {
-            transition: transform 0.2s;
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #43e97b;
+            --warning-color: #fa709a;
+            --danger-color: #f5576c;
+            --dark-bg: #1a1a1a;
+            --card-bg: #ffffff;
+            --text-dark: #333333;
+            --text-light: #666666;
+            --border-color: #e0e0e0;
         }
-        .card:hover {
-            transform: translateY(-5px);
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .video-card {
-            height: 100%;
+
+        .main-container {
+            padding: 20px;
         }
-        .thumbnail {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
         }
-        .loading {
-            display: none;
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
-        .result-section {
-            margin-top: 2rem;
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
         }
+
+        .nav-tabs {
+            border-bottom: 2px solid rgba(255,255,255,0.2);
+            margin-bottom: 30px;
+        }
+
         .nav-tabs .nav-link {
-            color: #495057;
+            color: white;
+            border: none;
+            background: transparent;
+            padding: 15px 25px;
+            font-weight: 500;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
+            transition: all 0.3s ease;
         }
+
+        .nav-tabs .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
         .nav-tabs .nav-link.active {
-            color: #0d6efd;
+            background: white;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            padding: 20px 25px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .card-body {
+            padding: 25px;
+        }
+
+        .form-control {
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 15px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-weight: 600;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #38f9d7);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-color), #fee140);
+            color: white;
+        }
+
+        .result-container {
+            background: var(--card-bg);
+            border: 2px solid var(--primary-color);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            color: var(--text-dark);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .video-item {
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .video-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .video-thumbnail {
+            width: 180px;
+            height: 135px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+
+        .video-info {
+            flex: 1;
+        }
+
+        .video-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: var(--text-dark);
+            line-height: 1.4;
+        }
+
+        .video-meta {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .video-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.85rem;
+            color: var(--text-light);
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+            font-size: 1.1rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-top: 15px;
+            border: none;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, var(--success-color), #38f9d7);
+            color: white;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, var(--danger-color), #f5576c);
+            color: white;
+        }
+
+        .alert-warning {
+            background: linear-gradient(135deg, var(--warning-color), #fee140);
+            color: white;
+        }
+
+        .tab-content {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .channel-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .transcript-content {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3 bg-light p-4" style="min-height: 100vh;">
-                <h3 class="mb-4">
-                    <i class="fab fa-youtube text-danger"></i>
-                    YouTube Search API
-                </h3>
-                
-                <ul class="nav nav-tabs flex-column" id="myTab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button" role="tab">
-                            <i class="fas fa-search"></i> 유사도 검색
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="youtube-search-tab" data-bs-toggle="tab" data-bs-target="#youtube-search" type="button" role="tab">
-                            <i class="fab fa-youtube"></i> YouTube 검색
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="channel-tab" data-bs-toggle="tab" data-bs-target="#channel" type="button" role="tab">
-                            <i class="fas fa-tv"></i> 채널 정보
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="transcript-tab" data-bs-toggle="tab" data-bs-target="#transcript" type="button" role="tab">
-                            <i class="fas fa-closed-captioning"></i> 자막 가져오기
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="save-channel-tab" data-bs-toggle="tab" data-bs-target="#save-channel" type="button" role="tab">
-                            <i class="fas fa-save"></i> 채널 저장
-                        </button>
-                    </li>
-                </ul>
-            </div>
+    <div class="main-container">
+        <div class="header">
+            <h1><i class="fab fa-youtube me-3"></i>YouTube AI Pro</h1>
+            <p>유튜브 분석 플랫폼</p>
+        </div>
 
-            <!-- Main Content -->
-            <div class="col-md-9 p-4">
-                <div class="tab-content" id="myTabContent">
-                    <!-- 유사도 검색 -->
-                    <div class="tab-pane fade show active" id="search" role="tabpanel">
-                        <h4>유사도 검색</h4>
-                        <p class="text-muted">검색어와 유사한 YouTube 자막을 찾습니다.</p>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="searchQuery" placeholder="검색어를 입력하세요...">
-                                    <button class="btn btn-primary" type="button" onclick="searchSimilar()">
-                                        <i class="fas fa-search"></i> 검색
-                                    </button>
-                                </div>
-                            </div>
+        <div class="container">
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button" role="tab">
+                        <i class="fas fa-search me-2"></i>YouTube 검색
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="channel-tab" data-bs-toggle="tab" data-bs-target="#channel" type="button" role="tab">
+                        <i class="fas fa-tv me-2"></i>채널 분석
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="transcript-tab" data-bs-toggle="tab" data-bs-target="#transcript" type="button" role="tab">
+                        <i class="fas fa-closed-captioning me-2"></i>자막 추출
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="vector-tab" data-bs-toggle="tab" data-bs-target="#vector" type="button" role="tab">
+                        <i class="fas fa-database me-2"></i>벡터 저장
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="myTabContent">
+                <!-- YouTube 검색 탭 -->
+                <div class="tab-pane fade show active" id="search" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-youtube me-2"></i>YouTube 동영상 검색
                         </div>
-
-                        <div class="loading" id="searchLoading">
-                            <div class="d-flex justify-content-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="search-input" class="form-control" placeholder="검색어를 입력하세요">
+                                <button class="btn btn-primary" onclick="searchYouTube()">
+                                    <i class="fas fa-search me-2"></i>검색
+                                </button>
                             </div>
+                            <div id="search-result"></div>
                         </div>
-
-                        <div id="searchResult" class="result-section"></div>
                     </div>
+                </div>
 
-                    <!-- YouTube 검색 -->
-                    <div class="tab-pane fade" id="youtube-search" role="tabpanel">
-                        <h4>YouTube 검색</h4>
-                        <p class="text-muted">YouTube에서 동영상을 검색합니다.</p>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="youtubeSearchQuery" placeholder="YouTube 검색어를 입력하세요...">
-                                    <button class="btn btn-primary" type="button" onclick="searchYouTube()">
-                                        <i class="fab fa-youtube"></i> 검색
-                                    </button>
-                                </div>
-                            </div>
+                <!-- 채널 분석 탭 -->
+                <div class="tab-pane fade" id="channel" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-tv me-2"></i>채널 분석
                         </div>
-
-                        <div class="loading" id="youtubeSearchLoading">
-                            <div class="d-flex justify-content-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="channel-url" class="form-control" placeholder="분석할 YouTube 영상 URL을 입력하세요">
+                                <button class="btn btn-primary" onclick="analyzeChannel()">
+                                    <i class="fas fa-chart-line me-2"></i>분석
+                                </button>
                             </div>
+                            <div id="channel-result"></div>
                         </div>
-
-                        <div id="youtubeSearchResult" class="result-section"></div>
                     </div>
+                </div>
 
-                    <!-- 채널 정보 -->
-                    <div class="tab-pane fade" id="channel" role="tabpanel">
-                        <h4>채널 정보</h4>
-                        <p class="text-muted">YouTube 영상 URL로 채널 정보를 가져옵니다.</p>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="channelVideoUrl" placeholder="YouTube 영상 URL을 입력하세요...">
-                                    <button class="btn btn-primary" type="button" onclick="getChannelInfo()">
-                                        <i class="fas fa-tv"></i> 채널 정보 가져오기
-                                    </button>
-                                </div>
-                            </div>
+                <!-- 자막 추출 탭 -->
+                <div class="tab-pane fade" id="transcript" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-closed-captioning me-2"></i>자막 추출
                         </div>
-
-                        <div class="loading" id="channelLoading">
-                            <div class="d-flex justify-content-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="transcript-url" class="form-control" placeholder="자막을 추출할 YouTube 영상 URL을 입력하세요">
+                                <button class="btn btn-warning" onclick="extractTranscript()">
+                                    <i class="fas fa-download me-2"></i>추출
+                                </button>
                             </div>
+                            <div id="transcript-result"></div>
                         </div>
-
-                        <div id="channelResult" class="result-section"></div>
                     </div>
+                </div>
 
-                    <!-- 자막 가져오기 -->
-                    <div class="tab-pane fade" id="transcript" role="tabpanel">
-                        <h4>자막 가져오기</h4>
-                        <p class="text-muted">YouTube 영상의 자막을 가져옵니다.</p>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="transcriptUrl" placeholder="YouTube 영상 URL을 입력하세요...">
-                                    <button class="btn btn-primary" type="button" onclick="getTranscript()">
-                                        <i class="fas fa-closed-captioning"></i> 자막 가져오기
-                                    </button>
-                                </div>
-                            </div>
+                <!-- 벡터 저장 탭 -->
+                <div class="tab-pane fade" id="vector" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-database me-2"></i>벡터 저장
                         </div>
-
-                        <div class="loading" id="transcriptLoading">
-                            <div class="d-flex justify-content-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="channel-id" class="form-control" placeholder="저장할 YouTube 채널 ID를 입력하세요">
+                                <button class="btn btn-success" onclick="saveVector()">
+                                    <i class="fas fa-save me-2"></i>저장
+                                </button>
                             </div>
+                            <div id="vector-result"></div>
                         </div>
-
-                        <div id="transcriptResult" class="result-section"></div>
-                    </div>
-
-                    <!-- 채널 저장 -->
-                    <div class="tab-pane fade" id="save-channel" role="tabpanel">
-                        <h4>채널 저장</h4>
-                        <p class="text-muted">채널의 모든 영상 자막을 임베딩하여 저장합니다.</p>
-                        
-                        <div class="row">
-                            <div class="col-md-8">
-                                <div class="input-group mb-3">
-                                    <input type="text" class="form-control" id="saveChannelId" placeholder="채널 ID를 입력하세요...">
-                                    <button class="btn btn-primary" type="button" onclick="saveChannel()">
-                                        <i class="fas fa-save"></i> 채널 저장
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="loading" id="saveChannelLoading">
-                            <div class="d-flex justify-content-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="saveChannelResult" class="result-section"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // YouTube 검색
+        async function searchYouTube() {
+            const query = document.getElementById('search-input').value;
+            if (!query) {
+                showAlert('search-result', '검색어를 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('search-result');
+            try {
+                const response = await fetch('/api/search-youtube', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const result = await response.json();
+                console.log('검색 결과:', result);
+
+                if (result.success && result.data) {
+                    displaySearchResults(result.data);
+                } else {
+                    showAlert('search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('API 오류:', error);
+                showAlert('search-result', `API 호출 중 오류: ${error.message}`, 'danger');
+            }
+        }
+
+        // 채널 분석
+        async function analyzeChannel() {
+            const url = document.getElementById('channel-url').value;
+            if (!url) {
+                showAlert('channel-result', 'URL을 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('channel-result');
+            try {
+                const response = await fetch('/api/channel-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_url: url })
+                });
+
+                const result = await response.json();
+                console.log('채널 분석 결과:', result);
+
+                if (result.success && result.data) {
+                    displayChannelResult(result.data);
+                } else {
+                    showAlert('channel-result', `분석 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('API 오류:', error);
+                showAlert('channel-result', `API 호출 중 오류: ${error.message}`, 'danger');
+            }
+        }
+
+        // 자막 추출
+        async function extractTranscript() {
+            const url = document.getElementById('transcript-url').value;
+            if (!url) {
+                showAlert('transcript-result', 'URL을 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('transcript-result');
+            try {
+                const response = await fetch('/api/transcript', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const result = await response.json();
+                console.log('자막 추출 결과:', result);
+
+                if (result.success && result.data) {
+                    displayTranscriptResult(result.data);
+                } else {
+                    showAlert('transcript-result', `추출 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('API 오류:', error);
+                showAlert('transcript-result', `API 호출 중 오류: ${error.message}`, 'danger');
+            }
+        }
+
+        // 벡터 저장
+        async function saveVector() {
+            const channelId = document.getElementById('channel-id').value;
+            if (!channelId) {
+                showAlert('vector-result', '채널 ID를 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('vector-result');
+            try {
+                const response = await fetch('/api/save-channel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channel_id: channelId })
+                });
+
+                const result = await response.json();
+                console.log('벡터 저장 결과:', result);
+
+                if (result.success) {
+                    showAlert('vector-result', result.data.message || '벡터 저장 완료!', 'success');
+                } else {
+                    showAlert('vector-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('API 오류:', error);
+                showAlert('vector-result', `API 호출 중 오류: ${error.message}`, 'danger');
+            }
+        }
+
+        // 결과 표시 함수들
+        function displaySearchResults(videos) {
+            const container = document.getElementById('search-result');
+            
+            if (!Array.isArray(videos) || videos.length === 0) {
+                container.innerHTML = '<div class="result-container">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            let html = '<div class="result-container fade-in">';
+            html += '<h4><i class="fas fa-youtube me-2"></i>검색 결과 (' + videos.length + '개)</h4>';
+            
+            videos.forEach((video, index) => {
+                html += `
+                    <div class="video-item">
+                                                 <img src="${video.thumbnailUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjEzNSIgdmlld0JveD0iMCAwIDE4MCAxMzUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTM1IiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik05MCA2Ny41QzkwIDY3LjUgOTAgNjcuNSA5MCA2Ny41WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'}" 
+                              class="video-thumbnail" 
+                              alt="썸네일"
+                              onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjEzNSIgdmlld0JveD0iMCAwIDE4MCAxMzUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTM1IiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik05MCA2Ny41QzkwIDY3LjUgOTAgNjcuNSA5MCA2Ny41WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'">
+                        <div class="video-info">
+                            <div class="video-title">${video.title || '제목 없음'}</div>
+                            <div class="video-meta">
+                                <i class="fas fa-user me-2"></i>${video.channelName || '채널명 없음'}<br>
+                                <i class="fas fa-calendar me-2"></i>${video.publishedDate ? new Date(video.publishedDate).toLocaleDateString() : '날짜 없음'}
+                            </div>
+                            <div class="video-stats">
+                                <span class="stat-item">
+                                    <i class="fas fa-eye"></i>조회수: ${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}
+                                </span>
+                                <span class="stat-item">
+                                    <i class="fas fa-thumbs-up"></i>좋아요: ${video.likeCount ? video.likeCount.toLocaleString() : 'N/A'}
+                                </span>
+                            </div>
+                            <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fab fa-youtube me-1"></i>YouTube에서 보기
+                            </a>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+                function displayChannelResult(data) {
+            const container = document.getElementById('channel-result');
+            console.log('채널 데이터:', data); // 디버깅용
+            
+            if (data.error) {
+                showAlert('channel-result', data.error, 'warning');
+                return;
+            }
+
+            const html = `
+                <div class="result-container fade-in">
+                    <h4><i class="fas fa-tv me-2"></i>채널 정보</h4>
+                    <div class="channel-info">
+                        <div class="row">
+                                                         <div class="col-md-3">
+                                 <img src="${data.channelThumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIwQzIwIDIwIDIwIDIwIDIwIDIwWiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4KPC9zdmc+'}" 
+                                     class="img-fluid rounded" alt="채널 썸네일"
+                                     onerror="console.log('채널 썸네일 로딩 실패:', this.src); this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIwQzIwIDIwIDIwIDIwIDIwIDIwWiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4KPC9zdmc+'"
+                                     onload="console.log('채널 썸네일 로딩 성공:', this.src)">
+                             </div>
+                            <div class="col-md-9">
+                                <h5>${data.channelTitle || '채널명 없음'}</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><i class="fas fa-users me-2"></i>구독자: ${data.subscriberCount ? data.subscriberCount.toLocaleString() : 'N/A'}</p>
+                                        <p><i class="fas fa-video me-2"></i>영상 수: ${data.videoCount || 'N/A'}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><i class="fas fa-eye me-2"></i>총 조회수: ${data.viewCount ? data.viewCount.toLocaleString() : 'N/A'}</p>
+                                        <p><i class="fas fa-calendar me-2"></i>가입일: ${data.createdDate ? new Date(data.createdDate).toLocaleDateString() : 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <a href="${data.channelUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="fab fa-youtube me-1"></i>채널 방문
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mt-4 mb-3"><i class="fas fa-list me-2"></i>최근 영상</h5>
+                    ${data.videos && Array.isArray(data.videos) ? data.videos.map(video => `
+                        <div class="video-item">
+                            <img src="${video.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjEzNSIgdmlld0JveD0iMCAwIDE4MCAxMzUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTM1IiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik05MCA2Ny41QzkwIDY3LjUgOTAgNjcuNSA5MCA2Ny41WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'}" class="video-thumbnail" alt="썸네일" onerror="console.log('비디오 썸네일 로딩 실패:', this.src); this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjEzNSIgdmlld0JveD0iMCAwIDE4MCAxMzUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTM1IiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik05MCA2Ny41QzkwIDY3LjUgOTAgNjcuNSA5MCA2Ny41WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'" onload="console.log('비디오 썸네일 로딩 성공:', this.src)">
+                            <div class="video-info">
+                                <div class="video-title">${video.title || '제목 없음'}</div>
+                                <div class="video-meta">
+                                    <i class="fas fa-calendar me-2"></i>${video.publishedDate ? new Date(video.publishedDate).toLocaleDateString() : '날짜 없음'}
+                                    <span class="ms-3"><i class="fas fa-eye me-2"></i>${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}</span>
+                                </div>
+                                <div class="mt-2">
+                                    <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="fab fa-youtube me-1"></i>영상 보기
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('') : '<p>최근 영상 정보를 가져올 수 없습니다.</p>'}
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function displayTranscriptResult(data) {
+            const container = document.getElementById('transcript-result');
+            
+            if (data.error) {
+                showAlert('transcript-result', data.error, 'warning');
+                return;
+            }
+
+            const html = `
+                <div class="result-container fade-in">
+                    <h4><i class="fas fa-closed-captioning me-2"></i>자막 내용</h4>
+                                         <div class="video-item">
+                         <img src="https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg" class="video-thumbnail" alt="썸네일" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjEzNSIgdmlld0JveD0iMCAwIDE4MCAxMzUiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTM1IiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik05MCA2Ny41QzkwIDY3LjUgOTAgNjcuNSA5MCA2Ny41WiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4K'">
+                        <div class="video-info">
+                            <div class="video-title">${data.title || '제목 없음'}</div>
+                            <div class="video-meta">
+                                <i class="fas fa-clock me-2"></i>길이: ${data.duration || 'N/A'}<br>
+                                <i class="fas fa-file-text me-2"></i>자막 길이: ${data.transcript ? data.transcript.length : 0}자
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h5><i class="fas fa-align-left me-2"></i>전체 자막</h5>
+                        <div class="transcript-content">
+                            <pre>${data.transcript || '자막을 찾을 수 없습니다.'}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        // 유틸리티 함수들
+        function showLoading(containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>AI가 분석 중입니다...</span>
+                </div>
+            `;
+        }
+
+        function showAlert(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `
+                <div class="alert alert-${type} fade-in">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                    ${message}
+                </div>
+            `;
+        }
+
+        // Enter 키 지원
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('.form-control');
+            inputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const button = this.closest('.card-body').querySelector('.btn');
+                        if (button) {
+                            button.click();
+                        }
+                    }
+                });
+            });
+        });
+    </script>
 </body>
-</html> 
+</html>
+                    

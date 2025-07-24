@@ -1,180 +1,163 @@
-# 파이썬으로 MCP Agent 만들기
+# YouTube Search API with MCP Agent
 
-YouTube 검색, 요약, 채널 분석 기능을 갖춘 유튜브 에이전트를 MCP로 구현한 예제입니다.
+YouTube 검색 및 유사도 검색을 위한 통합 시스템입니다. Rust 백엔드, Python MCP 서버, 그리고 모던 웹 UI를 포함합니다.
 
-## MCP (Model Context Protocol) 소개
-
-- AI가 외부 데이터의 도구(Tools)에 효과적으로 연결할 수 있는 표준화된 방식
-- 특히 다양한 도구의 표준화된 연결로 많이 활용되고 있음
-    - **MCP Server**: 사용할 수 있는 도구(tool)를 정의하고 제공하는 역할  
-    - **MCP Client**: 정의된 도구를 불러와 사용 (Claude Desktop, Cursor, OpenAI Agents SDK)
-- 이번 예제에서는 유튜브 컨텐츠 분석을 위한 MCP Server를 만들어보고, OpenAI Agents SDK 기반의 MCP Client와도 연결해볼 예정입니다.
-
-## 초기 셋팅
-
-1. 레포지토리 clone 또는 다운로드하기
-    ```bash
-    git clone <your-repository-url>
-    cd python_mcp_agent
-    ```
-2. [OpenAI 키 발급](https://platform.openai.com/api-keys)
-3. [YouTube Data API Key 발급](https://console.cloud.google.com/apis/credentials)
-4. .env.example를 복사한 후 API 키를 입력하고 .env로 저장
-
-    ```bash
-    cp .env.example .env
-    ```
-
-    .env 파일 내용:
-    ```env
-    OPENAI_API_KEY=api키_입력
-    YOUTUBE_API_KEY=api_키_입력
-    ```
-
-5. [파이썬 가상환경 설정](https://docs.python.org/3/library/venv.html)
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # Mac/Linux
-    # 또는
-    venv\Scripts\activate     # Windows
-    ```
-6. 패키지 설치
-
-    ```bash
-    pip install mcp openai-agents streamlit youtube-transcript-api python-dotenv requests
-    ```
-
-## MCP 클라이언트 연동을 위한 준비
-
-Claude, Cursor와 같은 MCP 클라이언트 애플리케이션에서 로컬 MCP 서버를 연동하려면,  
-서버 실행에 필요한 **Python 실행 파일 경로**와 **MCP 서버 스크립트 경로**를 JSON 설정에 입력해야 합니다.
-- 내 경로에 알맞게 .cursor/mcp.json을 수정해둡니다.
-
-### 경로 구성 예시
-
-#### ✅ Windows 예시  
-(예: 프로젝트 폴더가 `C:\projects\python_mcp_agent`인 경우)
-
-> **주의:** Windows에서는 JSON 문법상 `\` 대신 `\\` (역슬래시 두 번)을 사용해야 합니다.
-
-```json
-{
-  "mcpServers": {
-    "mcp-test": {
-      "command": "C:\\projects\\python_mcp_agent\\venv\\Scripts\\python.exe",
-      "args": [
-        "C:\\projects\\python_mcp_agent\\2_mcp_server.py"
-      ]
-    }
-  }
-}
-```
-
----
-
-#### ✅ macOS / Linux 예시  
-(예: 프로젝트 폴더가 `/home/jang/mcp_test/python_mcp_agent`인 경우)
-
-```json
-{
-  "mcpServers": {
-    "mcp-test": {
-      "command": "/home/jang/mcp_test/python_mcp_agent/venv/bin/python",
-      "args": [
-        "/home/jang/mcp_test/python_mcp_agent/2_mcp_server.py"
-      ]
-    }
-  }
-}
-```
-
----
-
-## 폴더 구조
+## 📁 프로젝트 구조
 
 ```
 python_mcp_agent/
-├── 1_mcp_server_functions.ipynb   # MCP 서버 함수 예제 노트북
-├── 2_mcp_server.py                # MCP 서버 구현 예제
-├── 3_openai_agents_basics.py      # OpenAI Agent 기본 예제
-├── 4_mcp_client.py                # Streamlit MCP Client 예제
-├── .env.example                   # 환경변수 예제 파일
-├── .cursor/mcp.json               # Cursor MCP 서버 설정 파일
-└── README.md                      # 프로젝트 문서
+├── youtube-search-api/          # Rust 백엔드 서버
+│   ├── src/
+│   │   └── main.rs             # Rust 서버 메인 코드
+│   ├── static/
+│   │   ├── index.html          # 웹 UI
+│   │   └── app.js             # 프론트엔드 JavaScript
+│   ├── my_mcp_client.py       # Rust-Python 연동 클라이언트
+│   ├── transcript_helper.py    # 자막 처리 헬퍼
+│   └── Cargo.toml             # Rust 의존성
+├── mcp_server.py               # Python MCP 서버 (핵심 로직)
+├── requirements.txt            # Python 의존성
+├── mcp.json                   # MCP 설정
+└── venv/                      # Python 가상환경
 ```
 
-## 사용 방법
+## 🚀 주요 기능
 
-### 1. MCP 서버 실행
+### 1. **유사도 검색** (Similarity Search)
+- OpenAI 임베딩을 사용한 텍스트 유사도 검색
+- Supabase 벡터 데이터베이스에서 유사한 자막 청크 검색
+- 가장 관련성 높은 YouTube 영상 추천
+
+### 2. **YouTube 검색** (YouTube Search)
+- YouTube Data API v3를 통한 실시간 영상 검색
+- 제목, 채널명, 조회수, 좋아요 수 등 상세 정보 제공
+- 한국어 검색어 지원
+
+### 3. **채널 정보** (Channel Info)
+- YouTube 영상 URL로부터 채널 정보 추출
+- 최근 5개 영상 목록 제공
+- 채널 통계 정보 표시
+
+### 4. **자막 가져오기** (Get Subtitles)
+- YouTube 영상의 자막 자동 추출
+- 한국어/영어 자막 지원
+- 텍스트 형태로 변환
+
+### 5. **채널 저장** (Save Channel)
+- 채널의 모든 영상 자막을 자동 수집
+- 300자씩 청킹하여 임베딩 생성
+- Supabase 벡터 데이터베이스에 저장
+
+## 🛠️ 기술 스택
+
+### **백엔드**
+- **Rust**: Actix Web, async/await, anyhow
+- **Python**: FastMCP, OpenAI, Supabase, YouTube API
+- **데이터베이스**: Supabase (PostgreSQL + 벡터 검색)
+
+### **프론트엔드**
+- **HTML/CSS**: Bootstrap 5, Font Awesome
+- **JavaScript**: Fetch API, JSON 처리
+- **UI/UX**: 모던 디자인, 로딩 상태, 에러 처리
+
+## 🔧 설치 및 실행
+
+### 1. **의존성 설치**
 ```bash
+# Python 가상환경 생성 및 활성화
+python3 -m venv venv
 source venv/bin/activate
-python 2_mcp_server.py
+
+# Python 의존성 설치
+pip install -r requirements.txt
+
+# Rust 의존성 설치
+cd youtube-search-api
+cargo build
 ```
 
-### 2. Cursor에서 MCP 연동
-1. Cursor 설정에서 MCP 서버 추가
-2. `.cursor/mcp.json` 파일 경로 설정
-3. Cursor 재시작
-
-### 3. Streamlit 클라이언트 실행
+### 2. **환경 변수 설정**
 ```bash
-source venv/bin/activate
-streamlit run 4_mcp_client.py
+# .env 파일 생성
+cp youtube-search-api/env.example .env
+
+# 필요한 API 키 설정
+YOUTUBE_API_KEY=your_youtube_api_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+OPENAI_API_KEY=your_openai_api_key
 ```
 
-## 주요 기능
-
-### 1. YouTube 동영상 검색
-- 키워드 기반 검색
-- 최대 20개 결과
-- 제목, 채널명, 조회수, 좋아요 수, 썸네일 제공
-
-### 2. 자막 추출
-- 한국어/영어 자막 우선순위
-- 자동 URL 파싱
-- 에러 처리 포함
-
-### 3. 채널 분석
-- 구독자 수, 총 조회수, 동영상 수
-- 최근 5개 동영상 목록
-- RSS 피드 활용
-
-### 4. **임베딩 기반 유사도 검색 (NEW)**
-- 검색어를 OpenAI 임베딩으로 변환
-- Supabase DB의 youtube_videos 테이블에서 embedding 컬럼과 유사도가 가장 높은 영상 row 1개 반환
-- pgvector 기반 코사인 유사도 검색
-
-#### 사용 예시 (MCP 클라이언트 또는 Python)
-```python
-from mcp.client.fastmcp import FastMCP
-client = FastMCP("youtube_agent_server", host="localhost", port=8000)
-result = client.search_similar_youtube_video("파스타 맛집")
-print(result)
-```
-
-## 문제 해결
-
-### MCP 서버가 인식되지 않는 경우
-1. `.cursor/mcp.json` 파일 경로 확인
-2. 가상환경 활성화 상태 확인
-3. Cursor 재시작
-
-### API 키 오류
-1. `.env` 파일에 올바른 API 키 입력 확인
-2. API 키 권한 설정 확인
-
-### 패키지 설치 오류
+### 3. **서버 실행**
 ```bash
-pip install --upgrade pip
-pip install mcp openai-agents streamlit youtube-transcript-api python-dotenv requests
+# Rust 서버 실행
+cd youtube-search-api
+cargo run
 ```
-### 클라이언트 실행 명령어
-streamlit run 4_mcp_client.py
 
-## 참고 자료
+서버가 `http://127.0.0.1:8080`에서 실행됩니다.
 
-- [MCP 공식 문서](https://modelcontextprotocol.io/)
-- [OpenAI Agents SDK](https://github.com/openai/openai-python)
-- [YouTube Data API](https://developers.google.com/youtube/v3)
+## 📊 API 엔드포인트
 
----
+### **1. 유사도 검색**
+```
+POST /api/search-similar
+Body: {"query": "검색어"}
+```
+
+### **2. YouTube 검색**
+```
+POST /api/search-youtube  
+Body: {"query": "검색어"}
+```
+
+### **3. 채널 정보**
+```
+POST /api/channel-info
+Body: {"video_url": "유튜브 URL"}
+```
+
+### **4. 자막 가져오기**
+```
+POST /api/transcript
+Body: {"url": "유튜브 URL"}
+```
+
+### **5. 채널 저장**
+```
+POST /api/save-channel
+Body: {"channel_id": "채널 ID"}
+```
+
+## 🔄 데이터 흐름
+
+### **YouTube 검색 예시 ("제육볶음")**
+```
+1. 프론트엔드 → Rust API → Python MCP → YouTube API
+2. YouTube API → Python MCP → Rust API → 프론트엔드
+3. 결과: 관련 YouTube 영상 목록 표시
+```
+
+### **유사도 검색 예시**
+```
+1. 프론트엔드 → Rust API → Python MCP → OpenAI 임베딩
+2. OpenAI → Python MCP → Supabase 벡터 검색
+3. Supabase → Python MCP → Rust API → 프론트엔드
+4. 결과: 가장 유사한 영상 정보 표시
+```
+
+## 🎯 핵심 특징
+
+- **비동기 처리**: Rust async/await로 고성능 처리
+- **모듈화**: Rust 백엔드 + Python MCP 서버 분리
+- **벡터 검색**: OpenAI 임베딩 + Supabase 벡터 DB
+- **실시간 검색**: YouTube Data API v3 실시간 연동
+- **모던 UI**: Bootstrap 5 기반 반응형 디자인
+- **에러 처리**: 각 단계별 안정적인 에러 처리
+
+## 📝 개발 노트
+
+- Python MCP 서버가 핵심 비즈니스 로직 담당
+- Rust 백엔드는 API 라우팅 및 Python 연동
+- 프론트엔드는 순수 HTML/JS로 구현
+- 모든 통신은 JSON 형태로 처리
