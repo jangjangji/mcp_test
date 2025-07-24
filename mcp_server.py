@@ -36,17 +36,27 @@ def get_youtube_transcript(url: str) -> str:
         raise ValueError("유효하지 않은 YouTube URL이 제공되었습니다")
     video_id = video_id_match.group(1)
     
-    languages = ["ko", "en"]
+    print(f"자막 추출 시도: 비디오 ID '{video_id}'")
+    
     # 2. youtube_transcript_api를 사용하여 자막을 가져옵니다.
     try:
+        # 간단한 방식으로 자막 가져오기
+        languages = ["ko", "en"]
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=languages)
         
         # 3. 자막 목록의 'text' 부분을 하나의 문자열로 결합합니다.
-        transcript_text = " ".join([entry["text"] for entry in transcript_list])
+        transcript_text = " ".join([entry['text'] for entry in transcript_list])
+        
+        if not transcript_text.strip():
+            raise Exception("자막 내용이 비어있습니다")
+        
+        print(f"자막 추출 성공: {video_id} (길이: {len(transcript_text)}자)")
         return transcript_text
 
     except Exception as e:
-        raise RuntimeError(f"비디오 ID '{video_id}'에 대한 자막을 찾을 수 없거나 사용할 수 없습니다.{e}")
+        error_msg = f"비디오 ID '{video_id}'에 대한 자막을 찾을 수 없거나 사용할 수 없습니다. 오류: {str(e)}"
+        print(f"자막 추출 실패: {error_msg}")
+        raise RuntimeError(error_msg)
 
 
 ### Tool 2 : 유튜브에서 특정 키워드로 동영상을 검색하고 세부 정보를 가져옵니다
@@ -75,7 +85,20 @@ def search_youtube_videos(query: str) :
             snippet = item.get('snippet', {})
             statistics = item.get('statistics', {})
             thumbnails = snippet.get('thumbnails', {})
-            high_thumbnail = thumbnails.get('high', {}) 
+            
+            # 썸네일 URL 우선순위: high > medium > default
+            thumbnail_url = ""
+            if thumbnails.get('high'):
+                thumbnail_url = thumbnails['high']['url']
+            elif thumbnails.get('medium'):
+                thumbnail_url = thumbnails['medium']['url']
+            elif thumbnails.get('default'):
+                thumbnail_url = thumbnails['default']['url']
+            else:
+                # 썸네일이 없으면 YouTube 기본 썸네일 사용
+                video_id = item.get('id', '')
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
+            
             view_count = statistics.get('viewCount')
             like_count = statistics.get('likeCount')
 
@@ -84,7 +107,7 @@ def search_youtube_videos(query: str) :
                 "publishedDate": snippet.get('publishedAt', ''),
                 "channelName": snippet.get('channelTitle', 'N/A'),
                 "channelId": snippet.get('channelId', ''),
-                "thumbnailUrl": high_thumbnail.get('url', ''),
+                "thumbnailUrl": thumbnail_url,
                 "viewCount": int(view_count) if view_count is not None else None,
                 "likeCount": int(like_count) if like_count is not None else None,
                 "url": f"https://www.youtube.com/watch?v={item.get('id', '')}",
@@ -97,6 +120,7 @@ def search_youtube_videos(query: str) :
         return videos
 
     except Exception as e:
+        print(f"YouTube 검색 오류: {e}")
         return []
     
 
@@ -124,17 +148,27 @@ def get_channel_info(video_url: str) -> dict:
                 link = entry.find('./atom:link', ns).attrib['href']
                 published = entry.find('./atom:published', ns).text
                 video_id = link.split('v=')[1] if 'v=' in link else None
-                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg" if video_id else ""
+                
+                # 썸네일 URL 생성 (여러 크기 시도)
+                thumbnail_url = ""
+                if video_id:
+                    # 먼저 mqdefault.jpg 시도
+                    thumbnail_url = f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
+                    # 만약 실패하면 hqdefault.jpg 시도
+                    # 실제로는 프론트엔드에서 onerror로 처리
+                
                 videos.append({
                     'title': title,
                     'url': link,
                     'publishedDate': published,
                     'thumbnail': thumbnail_url,
+                    'videoId': video_id,  # video_id 추가
                     'updatedDate': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 })
 
             return videos
-        except:
+        except Exception as e:
+            print(f"RSS 피드 가져오기 실패: {e}")
             return []
 
     video_id = extract_video_id(video_url)
