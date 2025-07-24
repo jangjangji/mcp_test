@@ -353,10 +353,50 @@ function displaySaveChannelResult(result) {
         return;
     }
 
+    // 결과 메시지를 줄바꿈으로 분리하여 각 단계별로 표시
+    const steps = result.message.split('\n').filter(step => step.trim() !== '');
+    
+    let stepsHtml = '';
+    steps.forEach(step => {
+        let icon = '📋';
+        let alertClass = 'alert-info';
+        
+        if (step.includes('✅')) {
+            icon = '✅';
+            alertClass = 'alert-success';
+        } else if (step.includes('❌')) {
+            icon = '❌';
+            alertClass = 'alert-danger';
+        } else if (step.includes('⚠️')) {
+            icon = '⚠️';
+            alertClass = 'alert-warning';
+        } else if (step.includes('📝')) {
+            icon = '📝';
+            alertClass = 'alert-info';
+        } else if (step.includes('💾')) {
+            icon = '💾';
+            alertClass = 'alert-success';
+        } else if (step.includes('📊')) {
+            icon = '📊';
+            alertClass = 'alert-primary';
+        }
+        
+        stepsHtml += `
+            <div class="alert ${alertClass} mb-2" role="alert">
+                <i class="fas fa-info-circle"></i>
+                ${step}
+            </div>
+        `;
+    });
+
     container.innerHTML = `
-        <div class="alert alert-success" role="alert">
-            <i class="fas fa-check-circle"></i>
-            ${result.message}
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-save"></i> 채널 저장 진행 상황</h5>
+            </div>
+            <div class="card-body">
+                ${stepsHtml}
+            </div>
         </div>
     `;
 }
