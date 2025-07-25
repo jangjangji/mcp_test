@@ -50,8 +50,8 @@ struct MCPClient;
 impl MCPClient {
     // Python MCP 서버와 통신하는 함수
     async fn call_function(function_name: &str, args: serde_json::Value) -> Result<String, anyhow::Error> {
-        // 가상환경의 Python 사용
-        let output = Command::new("../python/venv/bin/python")
+        // 가상환경의 Python 사용 (.venv로 수정)
+        let output = Command::new("../python/.venv/bin/python")
             .current_dir(".")  // 현재 디렉토리에서 실행
             .arg("../python/mcp_client.py")
             .arg(function_name)
