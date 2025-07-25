@@ -282,6 +282,51 @@
             font-size: 0.9rem;
             line-height: 1.6;
         }
+
+        .progress-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .progress-header {
+            margin-bottom: 15px;
+        }
+
+        .progress-header h5 {
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .progress-status {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .progress-log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 15px;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.9rem;
+            color: var(--text-dark);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry i {
+            color: var(--primary-color);
+        }
     </style>
 </head>
 <body>
@@ -311,6 +356,11 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="vector-tab" data-bs-toggle="tab" data-bs-target="#vector" type="button" role="tab">
                         <i class="fas fa-database me-2"></i>벡터 저장
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
+                        <i class="fas fa-search me-2"></i>유사도 검색
                     </button>
                 </li>
             </ul>
@@ -384,6 +434,24 @@
                                 </button>
                             </div>
                             <div id="vector-result"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 유사도 검색 탭 -->
+                <div class="tab-pane fade" id="similarity" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-search me-2"></i>유사도 검색
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="similarity-query" class="form-control" placeholder="검색어를 입력하세요">
+                                <button class="btn btn-info" onclick="searchSimilar()">
+                                    <i class="fas fa-magnifying-glass me-2"></i>검색
+                                </button>
+                            </div>
+                            <div id="similarity-result"></div>
                         </div>
                     </div>
                 </div>
@@ -491,25 +559,121 @@
                 return;
             }
 
-            showLoading('vector-result');
+            // 진행 상황 표시 시작
+            const container = document.getElementById('vector-result');
+            container.innerHTML = `
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <h5><i class="fas fa-database me-2"></i>벡터 저장 진행 중...</h5>
+                        <div class="progress-status">채널 ID: ${channelId}</div>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%" 
+                             id="progress-bar">0%</div>
+                    </div>
+                    <div class="progress-log" id="progress-log">
+                        <div class="log-entry">
+                            <i class="fas fa-play me-2"></i>벡터 저장을 시작합니다...
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const progressBar = document.getElementById('progress-bar');
+            const progressLog = document.getElementById('progress-log');
+
+            function updateProgress(percent, message) {
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+                
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                
+                // 메시지 타입에 따라 아이콘 변경
+                let icon = 'fas fa-info-circle';
+                if (message.includes('✅') || message.includes('완료')) {
+                    icon = 'fas fa-check-circle';
+                    logEntry.style.color = '#28a745';
+                } else if (message.includes('❌') || message.includes('실패')) {
+                    icon = 'fas fa-exclamation-triangle';
+                    logEntry.style.color = '#dc3545';
+                } else if (message.includes('🎉')) {
+                    icon = 'fas fa-star';
+                    logEntry.style.color = '#ffc107';
+                } else if (message.includes('📝')) {
+                    icon = 'fas fa-file-alt';
+                    logEntry.style.color = '#17a2b8';
+                }
+                
+                logEntry.innerHTML = `<i class="${icon} me-2"></i>${message}`;
+                progressLog.appendChild(logEntry);
+                progressLog.scrollTop = progressLog.scrollHeight;
+            }
+
             try {
+                updateProgress(10, '채널 정보를 가져오는 중...');
+                
+                // 실시간 진행 상황 시뮬레이션
+                let step = 0;
+                const progressInterval = setInterval(() => {
+                    const currentProgress = parseInt(progressBar.style.width) || 0;
+                    if (currentProgress < 90) {
+                        step++;
+                        const newProgress = currentProgress + Math.random() * 8;
+                        const messages = [
+                            '채널 영상 목록을 가져오는 중...',
+                            '영상 자막을 추출하는 중...',
+                            '자막을 청크로 분할하는 중...',
+                            'OpenAI 임베딩을 생성하는 중...',
+                            '데이터베이스에 저장하는 중...',
+                            '다음 영상을 처리하는 중...'
+                        ];
+                        const message = messages[step % messages.length];
+                        updateProgress(Math.min(newProgress, 90), message);
+                    }
+                }, 1500);
+                
                 const response = await fetch('/api/save-channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ channel_id: channelId })
                 });
 
+                clearInterval(progressInterval);
+                updateProgress(95, '최종 처리 중...');
+
                 const result = await response.json();
                 console.log('벡터 저장 결과:', result);
 
                 if (result.success) {
-                    showAlert('vector-result', result.data.message || '벡터 저장 완료!', 'success');
+                    updateProgress(100, '🎉 벡터 저장이 완료되었습니다!');
+                    
+                    // 완료 메시지 표시
+                    setTimeout(() => {
+                        container.innerHTML = `
+                            <div class="alert alert-success fade-in">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>벡터 저장 완료!</strong><br>
+                                ${result.data || '채널의 자막이 성공적으로 벡터로 변환되어 저장되었습니다.'}
+                            </div>
+                        `;
+                    }, 2000);
                 } else {
-                    showAlert('vector-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                    updateProgress(100, '❌ 오류가 발생했습니다.');
+                    
+                    setTimeout(() => {
+                        showAlert('vector-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                    }, 1000);
                 }
             } catch (error) {
                 console.error('API 오류:', error);
-                showAlert('vector-result', `API 호출 중 오류: ${error.message}`, 'danger');
+                updateProgress(100, 'API 호출 중 오류가 발생했습니다.');
+                
+                setTimeout(() => {
+                    showAlert('vector-result', `API 호출 중 오류: ${error.message}`, 'danger');
+                }, 1000);
             }
         }
 
@@ -547,6 +711,7 @@
                             <div class="video-title">${video.title || '제목 없음'}</div>
                             <div class="video-meta">
                                 <i class="fas fa-user me-2"></i>${video.channelName || '채널명 없음'}<br>
+                                <i class="fas fa-id-card me-2"></i>채널 ID: ${video.channelId || 'N/A'}<br>
                                 <i class="fas fa-calendar me-2"></i>${video.publishedDate ? new Date(video.publishedDate).toLocaleDateString() : '날짜 없음'}
                             </div>
                             <div class="video-stats">
@@ -714,6 +879,76 @@
                     ${message}
                 </div>
             `;
+        }
+
+        // 유사도 검색
+        async function searchSimilar() {
+            const query = document.getElementById('similarity-query').value;
+            if (!query) {
+                showAlert('similarity-result', '검색어를 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('similarity-result');
+
+            try {
+                const response = await fetch('/api/search-similar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                console.log('유사도 검색 결과:', data);
+
+                if (data.success && data.data) {
+                    displaySimilarityResult(data.data);
+                } else {
+                    showAlert('similarity-result', data.error || '유사도 검색에 실패했습니다.', 'danger');
+                }
+            } catch (error) {
+                console.error('유사도 검색 오류:', error);
+                showAlert('similarity-result', '유사도 검색 중 오류가 발생했습니다.', 'danger');
+            }
+        }
+
+        function displaySimilarityResult(data) {
+            const container = document.getElementById('similarity-result');
+            
+            if (data.error) {
+                showAlert('similarity-result', data.error, 'warning');
+                return;
+            }
+
+            const html = `
+                <div class="result-container fade-in">
+                    <h4><i class="fas fa-search me-2"></i>유사도 검색 결과</h4>
+                    <div class="video-item">
+                        <img src="https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg" 
+                             class="video-thumbnail" 
+                             alt="썸네일" 
+                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg';">
+                        <div class="video-info">
+                            <div class="video-title">유사도 점수: ${data.score ? (data.score * 100).toFixed(2) + '%' : 'N/A'}</div>
+                            <div class="video-meta">
+                                <i class="fas fa-video me-2"></i>비디오 ID: ${data.video_id}<br>
+                                <i class="fas fa-list-ol me-2"></i>청크 인덱스: ${data.chunk_index}<br>
+                                <i class="fas fa-link me-2"></i><a href="${data.url}" target="_blank">영상 보기</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h5><i class="fas fa-align-left me-2"></i>유사한 자막 내용</h5>
+                        <div class="transcript-content">
+                            <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;">${data.chunk_text || '내용을 찾을 수 없습니다.'}</pre>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
         }
 
         // Enter 키 지원

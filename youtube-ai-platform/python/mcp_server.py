@@ -207,14 +207,21 @@ def chunk_transcript(transcript: str, chunk_size: int = 300) -> list:
 
 @mcp.tool()
 def save_channel_youtube_embeddings(channel_id: str) -> str:
-    """YouTube 채널 ID 기반으로 최대 100개의 새로운 영상 자막을 300자씩 청킹하여 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""
+    """YouTube 채널 ID 기반으로 최대 3개의 새로운 영상 자막을 300자씩 청킹하여 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""
     openai.api_key = os.getenv("OPENAI_API_KEY")
-    max_results = 100
+    max_results = 3
     new_video_ids = []
     next_page_token = ""
     tried_video_ids = set()
 
-    while len(new_video_ids) < max_results:
+    # 충분한 수의 새로운 영상을 찾을 때까지 반복 (최대 10페이지까지)
+    page_count = 0
+    max_pages = 10  # 최대 10페이지까지 조회
+    
+    while len(new_video_ids) < max_results and page_count < max_pages:
+        page_count += 1
+        print(f"📄 {page_count}페이지 조회 중... (현재 {len(new_video_ids)}개 찾음)")
+        
         search_url = (
             f"{YOUTUBE_API_URL}/search?part=snippet&channelId={channel_id}"
             f"&maxResults=50&order=date&type=video&key={YOUTUBE_API_KEY}"
@@ -229,21 +236,47 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
 
         # 이미 저장된 영상 조회
         try:
-            resp_db = supabase.table("youtube_videos").select("video_id").in_("video_id", page_video_ids).execute()
-            existing_ids = set(row["video_id"] for row in resp_db.data)
+            # 각 영상 ID별로 개별 조회
+            existing_ids = set()
+            for vid in page_video_ids:
+                try:
+                    resp_db = supabase.table("youtube_videos").select("video_id").eq("video_id", vid).limit(1).execute()
+                    if resp_db.data:
+                        existing_ids.add(vid)
+                        print(f"🔍 이미 저장됨: {vid}")
+                except Exception as e:
+                    print(f"❌ 영상 {vid} 조회 오류: {str(e)}")
+            
+            print(f"🔍 현재 페이지 영상: {len(page_video_ids)}개")
+            print(f"🔍 이미 저장된 영상: {len(existing_ids)}개")
+            print(f"🔍 새로운 영상 후보: {len(page_video_ids) - len(existing_ids)}개")
         except Exception as e:
+            print(f"❌ DB 조회 오류: {str(e)}")
             existing_ids = set()
 
+        # 새로운 영상만 추가
+        new_found_this_page = 0
         for vid in page_video_ids:
             if vid not in existing_ids and vid not in new_video_ids and vid not in tried_video_ids:
                 new_video_ids.append(vid)
+                new_found_this_page += 1
+                print(f"✅ 새로운 영상 추가: {vid}")
                 if len(new_video_ids) >= max_results:
                     break
             tried_video_ids.add(vid)
+        
+        print(f"📈 이번 페이지에서 찾은 새로운 영상: {new_found_this_page}개")
 
         next_page_token = data.get("nextPageToken")
         if not next_page_token:
             break
+    
+    print(f"📊 찾은 새로운 영상: {len(new_video_ids)}개 (목표: {max_results}개)")
+    
+    # 충분한 영상을 찾지 못했다면 경고
+    if len(new_video_ids) < max_results:
+        print(f"⚠️ 새로운 영상이 부족합니다. (찾음: {len(new_video_ids)}개, 목표: {max_results}개)")
+        print(f"💡 채널에 새로운 영상이 없거나 이미 모두 저장되었을 수 있습니다.")
 
     if not new_video_ids:
         return "저장할 새로운 영상이 없습니다."
@@ -260,13 +293,21 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
         for video in video_data.get("items", []):
             video_id = video["id"]
             url = f"https://www.youtube.com/watch?v={video_id}"
+            print(f"처리 중: {video_id} - 자막 추출 시작")
+            
             # 자막 가져오기
             try:
                 transcript = get_youtube_transcript(url)
+                print(f"✅ {video_id} - 자막 추출 완료 ({len(transcript)}자)")
             except Exception as e:
+                print(f"❌ {video_id} - 자막 추출 실패: {str(e)}")
                 continue
+                
             # 300자씩 청킹
             chunks = chunk_transcript(transcript, chunk_size=300)
+            print(f"📝 {video_id} - {len(chunks)}개 청크로 분할")
+            
+            chunk_count = 0
             for chunk_idx, chunk in enumerate(chunks):
                 # OpenAI 임베딩
                 try:
@@ -276,7 +317,9 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
                         model="text-embedding-3-small"
                     ).data[0].embedding
                 except Exception as e:
+                    print(f"❌ {video_id} - 임베딩 실패 (청크 {chunk_idx}): {str(e)}")
                     continue
+                    
                 # Supabase 저장
                 try:
                     supabase.table("youtube_videos").insert({
@@ -287,8 +330,12 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
                         "embedding": embedding
                     }).execute()
                     count += 1
+                    chunk_count += 1
                 except Exception as e:
+                    print(f"❌ {video_id} - DB 저장 실패 (청크 {chunk_idx}): {str(e)}")
                     continue
+            
+            print(f"🎉 {video_id} - {chunk_count}개 청크 저장 완료!")
 
     return f"총 {count}개 자막 청크가 저장되었습니다."
 
