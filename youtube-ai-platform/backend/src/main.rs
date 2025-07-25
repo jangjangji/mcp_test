@@ -33,6 +33,11 @@ struct TranscriptRequest {
 }
 
 #[derive(Serialize, Deserialize)]
+struct ProgressRequest {
+    channel_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
 struct ApiResponse<T> {
     success: bool,
     data: Option<T>,
@@ -239,6 +244,43 @@ async fn save_channel_embeddings(req: web::Json<SaveChannelRequest>) -> Result<H
     }
 }
 
+async fn save_channel_embeddings_force(req: web::Json<SaveChannelRequest>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "channel_id": req.channel_id,
+        "force_update": true
+    });
+    
+    match MCPClient::call_function("save_channel_youtube_embeddings", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    // 문자열로 반환된 경우
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("MCP 함수 호출 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
 async fn get_youtube_transcript(req: web::Json<TranscriptRequest>) -> Result<HttpResponse> {
     let args = serde_json::json!({
         "url": req.url
@@ -321,6 +363,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/search-youtube", web::post().to(search_youtube_videos))
             .route("/api/channel-info", web::post().to(get_channel_info))
             .route("/api/save-channel", web::post().to(save_channel_embeddings))
+            .route("/api/save-channel-force", web::post().to(save_channel_embeddings_force))
             .route("/api/transcript", web::post().to(get_youtube_transcript))
     })
     .bind("127.0.0.1:8080")?
