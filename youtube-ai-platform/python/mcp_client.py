@@ -26,6 +26,8 @@ def call_mcp_function(function_name, args):
             result = mcp_server.save_channel_youtube_embeddings(args.get("channel_id", ""))
         elif function_name == "get_youtube_transcript":
             result = mcp_server.get_youtube_transcript(args.get("url", ""))
+        elif function_name == "save_single_video_embedding":
+            result = mcp_server.save_single_video_embedding(args.get("video_url", ""))
         else:
             raise ValueError(f"Unknown function: {function_name}")
         

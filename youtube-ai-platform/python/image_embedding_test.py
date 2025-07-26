@@ -106,7 +106,7 @@ if __name__ == "__main__":
     # 테스트 이미지들 (다양한 동물들)
     test_images = [
         "image/lion.jpg",   # 사자
-        "image/tiger.jpg",  # 호랑이  
+        "image/tiger.jpg",  # 판다  
         "image/dog.jpg",    # 강아지
     ]
     
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     # 유사도 테스트
     if len(embeddings) >= 2:
         print("\n=== 유사도 테스트 ===")
-        animal_names = ["사자", "호랑이", "강아지"]
+        animal_names = ["사자", "판다", "강아지"]
         for i in range(len(embeddings)):
             for j in range(i+1, len(embeddings)):
                 similarity = test_similarity(embeddings[i]["embedding"], embeddings[j]["embedding"])

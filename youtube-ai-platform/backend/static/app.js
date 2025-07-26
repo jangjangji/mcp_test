@@ -150,6 +150,183 @@ async function saveChannel() {
     }
 }
 
+// 단일 영상 저장 미리보기
+async function previewTranscript() {
+    const videoUrl = document.getElementById('single-video-url').value.trim();
+    if (!videoUrl) {
+        alert('YouTube 영상 URL을 입력해주세요.');
+        return;
+    }
+
+    showLoading('preview-result');
+    hideResult('preview-result');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/transcript`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url: videoUrl })
+        });
+
+        const result = await response.json();
+        console.log('자막 미리보기 결과:', result);
+        
+        hideLoading('preview-result'); // 로딩 상태 제거
+        
+        displayPreviewResult(result);
+    } catch (error) {
+        console.error('Error:', error);
+        hideLoading('preview-result'); // 에러 시에도 로딩 상태 제거
+        displayError('preview-result', '자막 미리보기 중 오류가 발생했습니다.');
+        document.getElementById('save-section').style.display = 'none';
+    }
+}
+
+// 자막 미리보기 결과 표시
+function displayPreviewResult(result) {
+    const container = document.getElementById('preview-result');
+    
+    console.log('displayPreviewResult 호출됨:', result); // 디버깅용
+    
+    if (result.success && result.data) {
+        const data = result.data;
+        const transcript = data.transcript || '';
+        
+        console.log('자막 내용:', transcript); // 디버깅용
+        
+        // 자막이 없는 경우 체크
+        if (!transcript || transcript.includes('자막 추출 실패') || transcript.includes('자막을 찾을 수 없')) {
+            container.innerHTML = `
+                <div class="alert alert-warning fade-in">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>자막이 없습니다!</strong><br>
+                    이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
+                    다른 영상을 시도해보세요.
+                </div>
+            `;
+            document.getElementById('save-section').style.display = 'none';
+            return;
+        }
+        
+        // 청크 정보 계산
+        const chunks = [];
+        const chunkSize = 300;
+        for (let i = 0; i < transcript.length; i += chunkSize) {
+            const chunk = transcript.slice(i, i + chunkSize);
+            chunks.push({
+                chunk_index: chunks.length,
+                chunk_text: chunk,
+                chunk_length: chunk.length
+            });
+        }
+        
+        let html = `
+            <div class="result-container fade-in">
+                <h4><i class="fas fa-eye me-2"></i>자막 미리보기</h4>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>자막 추출 성공!</strong><br>
+                    전체 자막 길이: ${transcript.length}자<br>
+                    청크 개수: ${chunks.length}개
+                </div>
+                
+                <h5><i class="fas fa-align-left me-2"></i>자막 내용 미리보기</h5>
+                <div class="transcript-content">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;">${transcript.substring(0, 500)}${transcript.length > 500 ? '...' : ''}</pre>
+                </div>
+                
+                <h5 class="mt-3"><i class="fas fa-list me-2"></i>청크 정보</h5>
+                <div class="row">
+        `;
+        
+        chunks.forEach((chunk, index) => {
+            html += `
+                <div class="col-md-6 mb-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <small>청크 ${chunk.chunk_index + 1} (${chunk.chunk_length}자)</small>
+                        </div>
+                        <div class="card-body">
+                            <small style="color: #666;">${chunk.chunk_text.substring(0, 100)}${chunk.chunk_text.length > 100 ? '...' : ''}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        document.getElementById('save-section').style.display = 'block'; // 저장 섹션 표시
+    } else {
+        container.innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>오류!</strong> ${result.error || '자막 미리보기에 실패했습니다.'}
+            </div>
+        `;
+        document.getElementById('save-section').style.display = 'none';
+    }
+}
+
+// 단일 영상 저장 (임베딩 저장)
+async function saveSingleVideo() {
+    const videoUrl = document.getElementById('single-video-url').value.trim();
+    if (!videoUrl) {
+        alert('YouTube 영상 URL을 입력해주세요.');
+        return;
+    }
+
+    showLoading('single-video-result');
+    hideResult('single-video-result');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/save-single-video`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ video_url: videoUrl })
+        });
+
+        const result = await response.json();
+        displaySingleVideoResult(result);
+    } catch (error) {
+        console.error('Error:', error);
+        displayError('single-video-result', '단일 영상 저장 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading('single-video-result');
+    }
+}
+
+// 단일 영상 저장 결과 표시
+function displaySingleVideoResult(result) {
+    const container = document.getElementById('single-video-result');
+    
+    if (result.success) {
+        let message = result.data?.message || '단일 영상 저장이 완료되었습니다.';
+        
+        container.innerHTML = `
+            <div class="alert alert-success" role="alert">
+                <i class="fas fa-check-circle"></i>
+                <strong>성공!</strong> ${message}
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>오류!</strong> ${result.error || '알 수 없는 오류가 발생했습니다.'}
+            </div>
+        `;
+    }
+}
+
 // 검색 결과 표시
 function displaySearchResult(result) {
     const container = document.getElementById('searchResult');
@@ -312,31 +489,65 @@ function displayChannelInfo(channelInfo) {
 }
 
 // 자막 결과 표시
-function displayTranscriptResult(result) {
-    const container = document.getElementById('transcriptResult');
+function displayTranscriptResult(data) {
+    const container = document.getElementById('transcript-result');
     
-    if (result.error) {
-        container.innerHTML = `
-            <div class="alert alert-danger" role="alert">
-                <i class="fas fa-exclamation-triangle"></i>
-                ${result.error}
-            </div>
-        `;
+    // 오류 체크 개선
+    if (data.error || (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없')))) {
+        const errorMsg = data.error || data.transcript || '자막 추출에 실패했습니다.';
+        
+        // 자막이 없는 경우 특별한 메시지 표시
+        if (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없'))) {
+            container.innerHTML = `
+                <div class="alert alert-warning fade-in">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>자막이 없습니다!</strong><br>
+                    이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
+                    다른 영상을 시도해보세요.
+                </div>
+            `;
+        } else {
+            showAlert('transcript-result', errorMsg, 'warning');
+        }
         return;
     }
 
-    container.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-closed-captioning"></i> 자막 내용</h5>
+    // video_id 추출 (URL에서)
+    const url = document.getElementById('transcript-url').value;
+    const videoIdMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : 'unknown';
+
+    const html = `
+        <div class="result-container fade-in">
+            <h4><i class="fas fa-closed-captioning me-2"></i>자막 내용</h4>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>자막 추출 성공!</strong>
             </div>
-            <div class="card-body">
-                <div class="border p-3 bg-light" style="max-height: 400px; overflow-y: auto;">
-                    <p class="mb-0">${result.transcript}</p>
+            <div class="video-item">
+                <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
+                     class="video-thumbnail" 
+                     alt="썸네일" 
+                     onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg';"
+                     onload="console.log('자막 추출 영상 썸네일 로딩 성공:', this.src)">
+                <div class="video-info">
+                    <div class="video-title">${data.title || '제목 없음'}</div>
+                    <div class="video-meta">
+                        <i class="fas fa-clock me-2"></i>길이: ${data.duration || 'N/A'}<br>
+                        <i class="fas fa-file-text me-2"></i>자막 길이: ${data.transcript ? data.transcript.length : 0}자
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <h5><i class="fas fa-align-left me-2"></i>전체 자막</h5>
+                <div class="transcript-content">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto;">${data.transcript || '자막을 찾을 수 없습니다.'}</pre>
                 </div>
             </div>
         </div>
     `;
+    container.innerHTML = html;
 }
 
 // 채널 저장 결과 표시
@@ -453,5 +664,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('saveChannelId').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') saveChannel();
+    });
+    
+    document.getElementById('single-video-url').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') previewTranscript();
     });
 }); 

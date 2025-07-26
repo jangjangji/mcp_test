@@ -359,6 +359,11 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="single-video-tab" data-bs-toggle="tab" data-bs-target="#single-video" type="button" role="tab">
+                        <i class="fas fa-video me-2"></i>단일 영상 저장
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
                         <i class="fas fa-search me-2"></i>유사도 검색
                     </button>
@@ -434,6 +439,36 @@
                                 </button>
                             </div>
                             <div id="vector-result"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 단일 영상 저장 탭 -->
+                <div class="tab-pane fade" id="single-video" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-video me-2"></i>단일 영상 저장
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="single-video-url" class="form-control" placeholder="저장할 YouTube 영상 URL을 입력하세요">
+                                <button class="btn btn-info" onclick="previewTranscript()">
+                                    <i class="fas fa-eye me-2"></i>자막 미리보기
+                                </button>
+                            </div>
+                            <div id="preview-result"></div>
+                            <div id="save-section" style="display: none;">
+                                <hr>
+                                <h5><i class="fas fa-save me-2"></i>저장 옵션</h5>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    자막 미리보기를 확인하신 후 아래 버튼을 클릭하여 임베딩 저장을 진행하세요.
+                                </div>
+                                <button class="btn btn-success" onclick="saveSingleVideo()">
+                                    <i class="fas fa-save me-2"></i>임베딩 저장하기
+                                </button>
+                            </div>
+                            <div id="single-video-result"></div>
                         </div>
                     </div>
                 </div>
@@ -677,6 +712,39 @@
             }
         }
 
+        // 단일 영상 저장
+        async function saveSingleVideo() {
+            const url = document.getElementById('single-video-url').value;
+            if (!url) {
+                showAlert('single-video-result', 'URL을 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('single-video-result');
+            try {
+                const response = await fetch('/api/save-single-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_url: url })
+                });
+
+                const result = await response.json();
+                console.log('단일 영상 저장 결과:', result);
+
+                if (result.success) {
+                    showAlert('single-video-result', '단일 영상 저장이 완료되었습니다.', 'success');
+                    setTimeout(() => {
+                        document.getElementById('single-video-result').innerHTML = ''; // 결과 컨테이너 비우기
+                    }, 2000);
+                } else {
+                    showAlert('single-video-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('API 오류:', error);
+                showAlert('single-video-result', `API 호출 중 오류: ${error.message}`, 'danger');
+            }
+        }
+
         // 결과 표시 함수들
         function displaySearchResults(videos) {
             const container = document.getElementById('search-result');
@@ -820,9 +888,22 @@
             const container = document.getElementById('transcript-result');
             
             // 오류 체크 개선
-            if (data.error || (data.transcript && data.transcript.includes('자막 추출 실패'))) {
+            if (data.error || (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없')))) {
                 const errorMsg = data.error || data.transcript || '자막 추출에 실패했습니다.';
-                showAlert('transcript-result', errorMsg, 'warning');
+                
+                // 자막이 없는 경우 특별한 메시지 표시
+                if (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없'))) {
+                    container.innerHTML = `
+                        <div class="alert alert-warning fade-in">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>자막이 없습니다!</strong><br>
+                            이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
+                            다른 영상을 시도해보세요.
+                        </div>
+                    `;
+                } else {
+                    showAlert('transcript-result', errorMsg, 'warning');
+                }
                 return;
             }
 
@@ -834,6 +915,10 @@
             const html = `
                 <div class="result-container fade-in">
                     <h4><i class="fas fa-closed-captioning me-2"></i>자막 내용</h4>
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>자막 추출 성공!</strong>
+                    </div>
                     <div class="video-item">
                         <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
                              class="video-thumbnail" 
@@ -949,6 +1034,90 @@
                 </div>
             `;
             container.innerHTML = html;
+        }
+
+        // 단일 영상 저장 미리보기 및 저장 로직
+        async function previewTranscript() {
+            const url = document.getElementById('single-video-url').value;
+            if (!url) {
+                showAlert('preview-result', 'URL을 입력해주세요.', 'warning');
+                return;
+            }
+
+            showLoading('preview-result');
+            try {
+                const response = await fetch('/api/transcript', { // 자막 추출 API 호출
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const result = await response.json();
+                console.log('자막 미리보기 결과:', result);
+
+                if (result.success && result.data) {
+                    // displayPreviewResult 함수 호출 (단일 영상 저장용)
+                    displayPreviewResult(result);
+                } else {
+                    showAlert('preview-result', `자막 미리보기 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+                    document.getElementById('save-section').style.display = 'none'; // 저장 섹션 숨김
+                }
+            } catch (error) {
+                console.error('자막 미리보기 API 오류:', error);
+                showAlert('preview-result', `자막 미리보기 중 오류: ${error.message}`, 'danger');
+                document.getElementById('save-section').style.display = 'none'; // 저장 섹션 숨김
+            }
+        }
+
+        // 자막 미리보기 결과 표시 (단일 영상 저장용)
+        function displayPreviewResult(result) {
+            const container = document.getElementById('preview-result');
+            
+            console.log('displayPreviewResult 호출됨:', result); // 디버깅용
+            
+            if (result.success && result.data) {
+                const data = result.data;
+                const transcript = data.transcript || '';
+                const videoId = data.video_id || '알 수 없음';
+                
+                console.log('자막 내용:', transcript); // 디버깅용
+                
+                // 자막이 없는 경우 체크
+                if (!transcript || transcript.includes('자막 추출 실패') || transcript.includes('자막을 찾을 수 없')) {
+                    container.innerHTML = `
+                        <div class="alert alert-warning fade-in">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>자막이 없습니다!</strong><br>
+                            이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
+                            다른 영상을 시도해보세요.
+                        </div>
+                    `;
+                    document.getElementById('save-section').style.display = 'none';
+                    return;
+                }
+                
+                // 자막 내용 미리보기 표시
+                container.innerHTML = `
+                    <div class="alert alert-success">
+                        <h5>자막 내용 미리보기</h5>
+                        <p><strong>비디오 ID:</strong> ${videoId}</p>
+                        <p><strong>자막 추출 성공!</strong> (${transcript.length}자)</p>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                            <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; color: #333; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5;">${transcript}</pre>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('save-section').style.display = 'block'; // 저장 섹션 표시
+            } else {
+                container.innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>오류!</strong> ${result.error || '자막 미리보기에 실패했습니다.'}
+                    </div>
+                `;
+                document.getElementById('save-section').style.display = 'none';
+            }
         }
 
         // Enter 키 지원
