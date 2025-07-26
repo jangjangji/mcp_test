@@ -5,6 +5,18 @@ venv/
 __pycache__/
 .ipynb_checkpoints/
 .DS_Store
+.venv/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+*.egg-info/
+*.dist-info/
+
+# Virtualenv symlinks
+lib64
 
 # Rust
 target/
@@ -47,4 +59,4 @@ coverage.xml
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db .venv/
