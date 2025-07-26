@@ -201,8 +201,8 @@ def get_channel_info(video_url: str) -> dict:
 
 # 자막 청킹 함수 추가
 
-def chunk_transcript(transcript: str, chunk_size: int = 300) -> list:
-    """자막 텍스트를 chunk_size(기본 300)자씩 나눠 리스트로 반환"""
+def chunk_transcript(transcript: str, chunk_size: int = 500) -> list:
+    """자막 텍스트를 chunk_size(기본 500)자씩 나눠 리스트로 반환"""
     return [transcript[i:i+chunk_size] for i in range(0, len(transcript), chunk_size)]
 
 @mcp.tool()
@@ -303,8 +303,8 @@ def save_channel_youtube_embeddings(channel_id: str) -> str:
                 print(f"❌ {video_id} - 자막 추출 실패: {str(e)}")
                 continue
                 
-            # 300자씩 청킹
-            chunks = chunk_transcript(transcript, chunk_size=300)
+            # 500자씩 청킹
+            chunks = chunk_transcript(transcript, chunk_size=500)
             print(f"📝 {video_id} - {len(chunks)}개 청크로 분할")
             
             chunk_count = 0
@@ -373,6 +373,71 @@ def search_similar_youtube_video(query: str) -> dict:
         import traceback
         traceback.print_exc()
         return {"error": str(e)}
+
+
+@mcp.tool()
+def save_single_video_embedding(video_url: str) -> str:
+    """단일 YouTube 영상 URL을 입력받아 자막을 추출하고 300글자씩 청킹하여 임베딩 저장"""
+    try:
+        # 1. URL에서 비디오 ID 추출
+        video_id_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11}).*", video_url)
+        if not video_id_match:
+            return "유효하지 않은 YouTube URL이 제공되었습니다"
+        video_id = video_id_match.group(1)
+        
+        print(f"🎬 영상 처리 시작: {video_id}")
+        
+        # 2. 이미 저장된 영상인지 확인
+        try:
+            existing = supabase.table("youtube_videos").select("video_id").eq("video_id", video_id).limit(1).execute()
+            if existing.data:
+                return f"이미 저장된 영상입니다: {video_id}"
+        except Exception as e:
+            print(f"⚠️ 기존 데이터 확인 중 오류: {str(e)}")
+        
+        # 3. 자막 추출
+        try:
+            transcript = get_youtube_transcript(video_url)
+            print(f"✅ 자막 추출 완료: {len(transcript)}자")
+        except Exception as e:
+            return f"자막 추출 실패: {str(e)}"
+        
+        # 4. 500글자씩 청킹
+        chunks = chunk_transcript(transcript, chunk_size=500)
+        print(f"📝 {len(chunks)}개 청크로 분할 완료")
+        
+        # 5. 각 청크를 임베딩하고 저장
+        saved_chunks = 0
+        for chunk_idx, chunk in enumerate(chunks):
+            try:
+                # OpenAI 임베딩 생성
+                time.sleep(1)  # API 호출 제한 방지
+                embedding_response = openai.embeddings.create(
+                    input=chunk,
+                    model="text-embedding-3-small"
+                )
+                embedding = embedding_response.data[0].embedding
+                
+                # Supabase에 저장
+                supabase.table("youtube_videos").insert({
+                    "video_id": video_id,
+                    "url": video_url,
+                    "chunk_index": chunk_idx,
+                    "chunk_text": chunk,
+                    "embedding": embedding
+                }).execute()
+                
+                saved_chunks += 1
+                print(f"💾 청크 {chunk_idx + 1}/{len(chunks)} 저장 완료")
+                
+            except Exception as e:
+                print(f"❌ 청크 {chunk_idx} 저장 실패: {str(e)}")
+                continue
+        
+        return f"✅ 영상 처리 완료! {saved_chunks}개 청크가 저장되었습니다. (비디오 ID: {video_id})"
+        
+    except Exception as e:
+        return f"영상 처리 중 오류 발생: {str(e)}"
 
 
 if __name__ == "__main__":
