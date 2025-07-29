@@ -210,9 +210,9 @@ function displayPreviewResult(result) {
             return;
         }
         
-        // 청크 정보 계산
+        // 청크 정보 계산 (고급 청킹 전략 사용)
         const chunks = [];
-        const chunkSize = 300;
+        const chunkSize = 500;
         for (let i = 0; i < transcript.length; i += chunkSize) {
             const chunk = transcript.slice(i, i + chunkSize);
             chunks.push({
@@ -229,7 +229,8 @@ function displayPreviewResult(result) {
                     <i class="fas fa-check-circle me-2"></i>
                     <strong>자막 추출 성공!</strong><br>
                     전체 자막 길이: ${transcript.length}자<br>
-                    청크 개수: ${chunks.length}개
+                    청크 개수: ${chunks.length}개<br>
+                    <small><i class="fas fa-info-circle me-1"></i>고급 청킹 전략 사용 (요리 관련 콘텐츠에 특화)</small>
                 </div>
                 
                 <h5><i class="fas fa-align-left me-2"></i>자막 내용 미리보기</h5>
@@ -669,4 +670,193 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('single-video-url').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') previewTranscript();
     });
-}); 
+    
+    document.getElementById('semantic-video-url').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') saveSemanticVideo();
+    });
+    
+    document.getElementById('compare-video-url').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') compareChunking();
+    });
+});
+
+// 의미 기반 청킹 저장
+async function saveSemanticVideo() {
+    const videoUrl = document.getElementById('semantic-video-url').value.trim();
+    if (!videoUrl) {
+        alert('YouTube 영상 URL을 입력해주세요.');
+        return;
+    }
+    
+    const chunkMethod = document.querySelector('input[name="chunkMethod"]:checked').value;
+    
+    showLoading('semantic-result');
+    hideResult('semantic-result');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/save-single-video-semantic`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                video_url: videoUrl,
+                chunk_method: chunkMethod
+            })
+        });
+
+        const result = await response.json();
+        displaySemanticResult(result, chunkMethod);
+    } catch (error) {
+        console.error('Error:', error);
+        displayError('semantic-result', '의미 기반 청킹 저장 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading('semantic-result');
+    }
+}
+
+// 의미 기반 청킹 결과 표시
+function displaySemanticResult(result, chunkMethod) {
+    const container = document.getElementById('semantic-result');
+    
+    if (result.success) {
+        const methodNames = {
+            'basic': '기본 청킹',
+            'semantic': '의미 기반 청킹',
+            'cooking': '요리 특화 청킹'
+        };
+        
+        container.innerHTML = `
+            <div class="alert alert-success" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>저장 완료!</strong><br>
+                청킹 방법: ${methodNames[chunkMethod] || chunkMethod}<br>
+                결과: ${result.data?.message || result.data}
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>오류!</strong> ${result.error || '의미 기반 청킹 저장에 실패했습니다.'}
+            </div>
+        `;
+    }
+}
+
+// 청킹 방법 비교
+async function compareChunking() {
+    const videoUrl = document.getElementById('compare-video-url').value.trim();
+    if (!videoUrl) {
+        alert('YouTube 영상 URL을 입력해주세요.');
+        return;
+    }
+    
+    showLoading('compare-result');
+    hideResult('compare-result');
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/compare-chunking`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ video_url: videoUrl })
+        });
+
+        const result = await response.json();
+        displayCompareResult(result);
+    } catch (error) {
+        console.error('Error:', error);
+        displayError('compare-result', '청킹 방법 비교 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading('compare-result');
+    }
+}
+
+// 청킹 방법 비교 결과 표시
+function displayCompareResult(result) {
+    const container = document.getElementById('compare-result');
+    
+    if (result.success && result.data) {
+        const data = result.data;
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar me-2"></i>청킹 방법 비교 결과</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6><i class="fas fa-list me-2"></i>기본 청킹</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>청크 개수:</strong> ${data.basic_chunking?.chunk_count || 0}개</p>
+                                    <p><strong>평균 길이:</strong> ${Math.round(data.basic_chunking?.avg_chunk_length || 0)}자</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6><i class="fas fa-brain me-2"></i>의미 기반 청킹</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>청크 개수:</strong> ${data.semantic_chunking?.chunk_count || 0}개</p>
+                                    <p><strong>평균 길이:</strong> ${Math.round(data.semantic_chunking?.avg_chunk_length || 0)}자</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6><i class="fas fa-utensils me-2"></i>요리 특화 청킹</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>청크 개수:</strong> ${data.cooking_semantic_chunking?.chunk_count || 0}개</p>
+                                    <p><strong>평균 길이:</strong> ${Math.round(data.cooking_semantic_chunking?.avg_chunk_length || 0)}자</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6><i class="fas fa-info-circle me-2"></i>샘플 청크</h6>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>기본 청킹 샘플:</h6>
+                                <div class="alert alert-light">
+                                    <small>${data.basic_chunking?.sample_chunks?.[0]?.substring(0, 100) || '샘플 없음'}...</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>의미 기반 청킹 샘플:</h6>
+                                <div class="alert alert-light">
+                                    <small>${data.semantic_chunking?.sample_chunks?.[0]?.substring(0, 100) || '샘플 없음'}...</small>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>요리 특화 청킹 샘플:</h6>
+                                <div class="alert alert-light">
+                                    <small>${data.cooking_semantic_chunking?.sample_chunks?.[0]?.substring(0, 100) || '샘플 없음'}...</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = `
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>오류!</strong> ${result.error || '청킹 방법 비교에 실패했습니다.'}
+            </div>
+        `;
+    }
+} 
