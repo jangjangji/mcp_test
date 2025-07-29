@@ -38,6 +38,17 @@ struct SaveSingleVideoRequest {
 }
 
 #[derive(Serialize, Deserialize)]
+struct SaveSingleVideoSemanticRequest {
+    video_url: String,
+    chunk_method: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CompareChunkingRequest {
+    video_url: String,
+}
+
+#[derive(Serialize, Deserialize)]
 struct ProgressRequest {
     channel_id: String,
 }
@@ -372,6 +383,89 @@ async fn save_single_video_embedding(req: web::Json<SaveSingleVideoRequest>) -> 
     }
 }
 
+async fn save_single_video_semantic_embedding(req: web::Json<SaveSingleVideoSemanticRequest>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "video_url": req.video_url,
+        "chunk_method": req.chunk_method
+    });
+    
+    match MCPClient::call_function("save_single_video_semantic_embedding", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    let result_data = if let Some(result_value) = data.get("result") {
+                        result_value.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("MCP 함수 호출 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
+async fn compare_chunking_methods(req: web::Json<CompareChunkingRequest>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "video_url": req.video_url
+    });
+    
+    match MCPClient::call_function("compare_chunking_methods", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    let result_data = if let Some(result_value) = data.get("result") {
+                        result_value.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("MCP 함수 호출 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
 async fn health_check() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "healthy",
@@ -414,6 +508,8 @@ async fn main() -> std::io::Result<()> {
             .route("/api/save-channel-force", web::post().to(save_channel_embeddings_force))
             .route("/api/transcript", web::post().to(get_youtube_transcript))
             .route("/api/save-single-video", web::post().to(save_single_video_embedding))
+            .route("/api/save-single-video-semantic", web::post().to(save_single_video_semantic_embedding))
+            .route("/api/compare-chunking", web::post().to(compare_chunking_methods))
     })
     .bind("127.0.0.1:8080")?
     .run()

@@ -364,6 +364,11 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="semantic-chunking-tab" data-bs-toggle="tab" data-bs-target="#semantic-chunking" type="button" role="tab">
+                        <i class="fas fa-brain me-2"></i>의미 기반 청킹
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
                         <i class="fas fa-search me-2"></i>유사도 검색
                     </button>
@@ -469,6 +474,86 @@
                                 </button>
                             </div>
                             <div id="single-video-result"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 의미 기반 청킹 탭 -->
+                <div class="tab-pane fade" id="semantic-chunking" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-brain me-2"></i>의미 기반 청킹
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>의미 기반 청킹</strong>은 단순히 글자 수로 나누는 것이 아니라 문장 단위와 의미를 고려하여 더 정확한 검색 결과를 제공합니다.
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-cogs me-2"></i>청킹 방법 선택
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="chunkMethod" id="methodBasic" value="basic" checked>
+                                                <label class="form-check-label" for="methodBasic">
+                                                    <strong>기본 청킹</strong><br>
+                                                    <small>500자씩 고정 크기로 분할</small>
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="chunkMethod" id="methodSemantic" value="semantic">
+                                                <label class="form-check-label" for="methodSemantic">
+                                                    <strong>의미 기반 청킹</strong><br>
+                                                    <small>문장 단위로 분할하여 의미 보존</small>
+                                                </label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="chunkMethod" id="methodCooking" value="cooking">
+                                                <label class="form-check-label" for="methodCooking">
+                                                    <strong>요리 특화 청킹</strong><br>
+                                                    <small>재료, 조리법, 팁 등 요리 관련 주제별 분할</small>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-play me-2"></i>영상 URL
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="input-group">
+                                                <input type="text" id="semantic-video-url" class="form-control" placeholder="YouTube 영상 URL을 입력하세요">
+                                                <button class="btn btn-primary" onclick="saveSemanticVideo()">
+                                                    <i class="fas fa-save me-2"></i>저장
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-chart-bar me-2"></i>청킹 방법 비교
+                                </div>
+                                <div class="card-body">
+                                    <div class="input-group mb-3">
+                                        <input type="text" id="compare-video-url" class="form-control" placeholder="비교할 YouTube 영상 URL을 입력하세요">
+                                        <button class="btn btn-warning" onclick="compareChunking()">
+                                            <i class="fas fa-balance-scale me-2"></i>비교
+                                        </button>
+                                    </div>
+                                    <div id="compare-result"></div>
+                                </div>
+                            </div>
+                            
+                            <div id="semantic-result"></div>
                         </div>
                     </div>
                 </div>

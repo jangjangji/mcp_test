@@ -205,6 +205,92 @@ def chunk_transcript(transcript: str, chunk_size: int = 500) -> list:
     """자막 텍스트를 chunk_size(기본 500)자씩 나눠 리스트로 반환"""
     return [transcript[i:i+chunk_size] for i in range(0, len(transcript), chunk_size)]
 
+def semantic_chunk_transcript(transcript: str, similarity_threshold: float = 0.7) -> tuple:
+    """진정한 시맨틱 기반으로 자막 텍스트를 청킹하여 (청크텍스트, 임베딩) 튜플 리스트로 반환"""
+    import re
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    
+    # 1. 문장 단위로 분리
+    sentences = re.split(r'[.!?]+', transcript)
+    sentences = [s.strip() for s in sentences if len(s.strip()) >= 10]  # 최소 10자 이상
+    
+    if len(sentences) <= 1:
+        if transcript.strip():
+            # 단일 청크인 경우 임베딩 생성
+            try:
+                embedding = openai.embeddings.create(
+                    input=transcript,
+                    model="text-embedding-3-small"
+                ).data[0].embedding
+                return [(transcript.strip(), embedding)]
+            except Exception as e:
+                print(f"❌ 단일 청크 임베딩 실패: {str(e)}")
+                return [(transcript.strip(), None)]
+        return []
+    
+    print(f"📝 총 {len(sentences)}개 문장을 시맨틱 청킹 중...")
+    
+    # 2. 각 문장을 임베딩
+    embeddings = []
+    valid_sentences = []
+    for i, sentence in enumerate(sentences):
+        try:
+            time.sleep(0.1)  # API 호출 제한 방지
+            embedding_response = openai.embeddings.create(
+                input=sentence,
+                model="text-embedding-3-small"
+            )
+            embedding = embedding_response.data[0].embedding
+            embeddings.append(embedding)
+            valid_sentences.append(sentence)
+            print(f"🔍 문장 {i+1}/{len(sentences)} 임베딩 완료")
+        except Exception as e:
+            print(f"❌ 문장 {i+1} 임베딩 실패: {str(e)}")
+            # 실패한 문장은 제외
+            continue
+    
+    if not embeddings:
+        return [(transcript, None)]
+    
+    # 3. 코사인 유사도 계산
+    embeddings_array = np.array(embeddings)
+    similarity_matrix = cosine_similarity(embeddings_array)
+    
+    # 4. 시맨틱 클러스터링 (유사도 기반)
+    chunks_with_embeddings = []
+    used_indices = set()
+    
+    for i in range(len(valid_sentences)):
+        if i in used_indices:
+            continue
+            
+        # 현재 문장과 유사한 문장들을 찾아서 클러스터 생성
+        cluster_indices = [i]
+        used_indices.add(i)
+        
+        for j in range(i + 1, len(valid_sentences)):
+            if j in used_indices:
+                continue
+                
+            # 유사도가 임계값보다 높으면 같은 클러스터에 추가
+            if similarity_matrix[i][j] >= similarity_threshold:
+                cluster_indices.append(j)
+                used_indices.add(j)
+        
+        # 클러스터의 문장들을 하나의 청크로 결합
+        cluster_sentences = [valid_sentences[idx] for idx in cluster_indices]
+        chunk_text = " ".join(cluster_sentences)
+        
+        if len(chunk_text.strip()) >= 20:  # 최소 20자 이상
+            # 클러스터의 첫 번째 문장 임베딩을 청크 임베딩으로 사용
+            chunk_embedding = embeddings[cluster_indices[0]]
+            chunks_with_embeddings.append((chunk_text.strip(), chunk_embedding))
+            print(f"🎯 시맨틱 청크 생성: {len(cluster_sentences)}개 문장 (유사도 임계값: {similarity_threshold})")
+    
+    print(f"✅ 시맨틱 청킹 완료: {len(chunks_with_embeddings)}개 청크 생성")
+    return chunks_with_embeddings
+
 @mcp.tool()
 def save_channel_youtube_embeddings(channel_id: str) -> str:
     """YouTube 채널 ID 기반으로 최대 3개의 새로운 영상 자막을 300자씩 청킹하여 임베딩하고 supabase에 저장 (이미 저장된 영상은 건너뜀)"""

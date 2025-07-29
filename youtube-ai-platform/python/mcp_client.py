@@ -28,6 +28,13 @@ def call_mcp_function(function_name, args):
             result = mcp_server.get_youtube_transcript(args.get("url", ""))
         elif function_name == "save_single_video_embedding":
             result = mcp_server.save_single_video_embedding(args.get("video_url", ""))
+        elif function_name == "save_single_video_semantic_embedding":
+            result = mcp_server.save_single_video_semantic_embedding(
+                args.get("video_url", ""), 
+                args.get("chunk_method", "semantic")
+            )
+        elif function_name == "compare_chunking_methods":
+            result = mcp_server.compare_chunking_methods(args.get("video_url", ""))
         else:
             raise ValueError(f"Unknown function: {function_name}")
         
