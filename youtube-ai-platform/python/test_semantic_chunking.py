@@ -92,7 +92,6 @@ def test_semantic_chunking(transcript: str, similarity_threshold: float = 0.7) -
     
     return result
 
-
 def load_cooking_transcript():
     """요리 자막 파일을 읽어서 반환"""
     try:
@@ -104,8 +103,60 @@ def load_cooking_transcript():
         print(f"❌ 요리 자막 파일 읽기 실패: {str(e)}")
         return None
 
+def test_clip_video_search():
+    """CLIP 비디오 검색 시스템 테스트"""
+    print("\n🎬 CLIP 비디오 검색 시스템 테스트")
+    print("=" * 50)
+    
+    try:
+        from video_search_system import VideoSearchSystem
+        
+        # CLIP 모델 로딩 테스트
+        print("🔧 CLIP 모델 로딩 중...")
+        system = VideoSearchSystem()
+        print("✅ CLIP 모델 로딩 성공!")
+        
+        # 텍스트 인코딩 테스트
+        test_queries = [
+            "강아지가 물속에서 수영하는 장면",
+            "사람이 요리하는 모습",
+            "자동차가 도로를 달리는 장면"
+        ]
+        
+        print("\n📝 텍스트 인코딩 테스트:")
+        for query in test_queries:
+            features = system.encode_text(query)
+            print(f"✅ '{query}' 인코딩 성공 (차원: {features.shape})")
+        
+        # 유사도 계산 테스트
+        print("\n📊 유사도 계산 테스트:")
+        import numpy as np
+        vec1 = np.random.randn(512)
+        vec2 = np.random.randn(512)
+        similarity = system.cosine_similarity(vec1, vec2)
+        print(f"✅ 유사도 계산 성공: {similarity:.3f}")
+        
+        # 타임스탬프 포맷팅 테스트
+        print("\n⏰ 타임스탬프 포맷팅 테스트:")
+        test_seconds = [0, 65, 3661]
+        for seconds in test_seconds:
+            formatted = system.format_timestamp(seconds)
+            print(f"✅ {seconds}초 → {formatted}")
+        
+        print("\n✅ CLIP 비디오 검색 시스템 테스트 완료!")
+        return True
+        
+    except ImportError as e:
+        print(f"❌ CLIP 모듈 import 실패: {str(e)}")
+        print("💡 pip install torch torchvision ftfy regex")
+        print("💡 pip install git+https://github.com/openai/CLIP.git")
+        return False
+    except Exception as e:
+        print(f"❌ CLIP 테스트 실패: {str(e)}")
+        return False
+
 def run_tests():
-    """요리 자막 파일 시맨틱 청킹 테스트 실행"""
+    """요리 자막 시맨틱 청킹 테스트 실행"""
     print("🚀 요리 자막 시맨틱 청킹 테스트 시작")
     print("=" * 60)
     
@@ -116,7 +167,7 @@ def run_tests():
     cooking_transcript = load_cooking_transcript()
     if cooking_transcript:
         try:
-            result = test_semantic_chunking(cooking_transcript, similarity_threshold=0.5)  # 0.7에서 0.5로 낮춤
+            result = test_semantic_chunking(cooking_transcript, similarity_threshold=0.3)  # 0.5에서 0.3으로 더 낮춤
             
             if "error" not in result:
                 print(f"📊 요리 자막 시맨틱 청킹 결과:")
@@ -140,6 +191,9 @@ def run_tests():
         print("❌ 요리 자막 파일을 읽을 수 없어서 테스트를 건너뜁니다.")
     
     print("\n" + "=" * 60)
+    
+    # CLIP 비디오 검색 테스트
+    test_clip_video_search()
 
 if __name__ == "__main__":
     run_tests()
