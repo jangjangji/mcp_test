@@ -10,6 +10,7 @@ import re
 from dotenv import load_dotenv
 import os
 import numpy as np
+from video_search_system import VideoSearchSystem
 load_dotenv()
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -18,6 +19,8 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# 비디오 검색 시스템 초기화
+video_system = VideoSearchSystem()
 
 # Create an MCP server
 mcp = FastMCP("youtube_agent_server")
@@ -524,6 +527,42 @@ def save_single_video_embedding(video_url: str) -> str:
         
     except Exception as e:
         return f"영상 처리 중 오류 발생: {str(e)}"
+
+
+@mcp.tool()
+def add_video_to_db(video_path: str, video_id: str = None) -> str:
+    """비디오 파일을 데이터베이스에 추가하고 프레임들을 임베딩하여 저장합니다"""
+    try:
+        # 비디오 시스템을 사용하여 비디오를 데이터베이스에 추가
+        result = video_system.add_video_to_db(video_path, video_id)
+        return f"✅ 비디오 '{result}' 추가 완료"
+    except Exception as e:
+        return f"❌ 비디오 추가 실패: {str(e)}"
+
+
+@mcp.tool()
+def search_video_in_db(query: str, top_k: int = 5) -> list:
+    """텍스트 쿼리로 데이터베이스에서 비디오를 검색합니다"""
+    try:
+        # 비디오 시스템을 사용하여 검색
+        results = video_system.search_video_in_db(query, top_k)
+        return results
+    except Exception as e:
+        return [{"error": f"검색 실패: {str(e)}"}]
+
+
+@mcp.tool()
+def clear_video_from_db(video_id: str) -> str:
+    """데이터베이스에서 특정 비디오의 모든 데이터를 삭제합니다"""
+    try:
+        # 비디오 시스템을 사용하여 비디오 삭제
+        success = video_system.clear_video_from_db(video_id)
+        if success:
+            return f"✅ 비디오 '{video_id}' 삭제 완료"
+        else:
+            return f"❌ 비디오 '{video_id}' 삭제 실패"
+    except Exception as e:
+        return f"❌ 비디오 삭제 중 오류: {str(e)}"
 
 
 if __name__ == "__main__":

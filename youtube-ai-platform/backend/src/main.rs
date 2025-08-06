@@ -1,10 +1,15 @@
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer, HttpResponse, Result, middleware::Logger};
 use actix_files::Files;
+use actix_multipart::Multipart;
+use futures::{TryStreamExt};
 use serde::{Deserialize, Serialize};
 use dotenv::dotenv;
 use chrono::Utc;
 use std::process::Command;
+use std::fs;
+use std::path::Path;
+use std::io::Write;
 
 // JSON 요청/응답 구조체들
 #[derive(Serialize, Deserialize)]
@@ -38,9 +43,29 @@ struct SaveSingleVideoRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SaveSingleVideoSemanticRequest {
-    video_url: String,
-    chunk_method: String,
+struct ProgressRequest {
+    channel_id: String,
+}
+
+// 비디오 업로드 및 검색 관련 구조체들
+#[derive(Serialize, Deserialize)]
+struct VideoUploadResponse {
+    video_id: String,
+    message: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct VideoSearchResponse {
+    video_id: String,
+    video_path: String,
+    timestamp: f64,
+    similarity: f64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct VideoSearchResult {
+    results: Vec<VideoSearchResponse>,
+    query: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -49,8 +74,9 @@ struct CompareChunkingRequest {
 }
 
 #[derive(Serialize, Deserialize)]
-struct ProgressRequest {
-    channel_id: String,
+struct SaveSingleVideoSemanticRequest {
+    video_url: String,
+    chunk_method: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,8 +94,8 @@ impl MCPClient {
     async fn call_function(function_name: &str, args: serde_json::Value) -> Result<String, anyhow::Error> {
         // 가상환경의 Python 사용 (.venv로 수정)
         let output = Command::new("../python/.venv/bin/python")
-            .current_dir(".")  // 현재 디렉토리에서 실행
-            .arg("../python/mcp_client.py")
+            .current_dir("../python")  // python 디렉토리에서 실행
+            .arg("mcp_client.py")
             .arg(function_name)
             .arg(serde_json::to_string(&args)?)
             .output()?;
@@ -466,6 +492,233 @@ async fn compare_chunking_methods(req: web::Json<CompareChunkingRequest>) -> Res
     }
 }
 
+// 비디오 업로드 API 엔드포인트
+async fn upload_video(mut payload: Multipart) -> Result<HttpResponse> {
+    let mut uploaded_file_path = String::new();
+    let mut video_id = String::new();
+    let mut original_filename = String::new();
+
+    // 업로드 디렉토리 생성
+    let upload_dir = Path::new("uploads");
+    if !upload_dir.exists() {
+        fs::create_dir_all(upload_dir)?;
+    }
+
+    while let Some(item) = payload.try_next().await? {
+        if item.name() == "video" {
+            // 파일 업로드 처리
+            let filename = format!("{}.mp4", uuid::Uuid::new_v4());
+            let filepath = upload_dir.join(&filename);
+            
+            let mut f = fs::File::create(&filepath)?;
+            let mut buffer = Vec::new();
+            
+            // 파일 데이터 읽기
+            let mut stream = item.into_stream();
+            while let Some(chunk) = stream.try_next().await? {
+                buffer.extend_from_slice(&chunk);
+            }
+            
+            f.write_all(&buffer)?;
+            uploaded_file_path = filepath.to_string_lossy().to_string();
+            
+        } else if item.name() == "video_id" {
+            // 비디오 ID 처리
+            let mut buffer = Vec::new();
+            let mut stream = item.into_stream();
+            while let Some(chunk) = stream.try_next().await? {
+                buffer.extend_from_slice(&chunk);
+            }
+            video_id = String::from_utf8(buffer).map_err(|e| {
+                actix_web::error::ErrorBadRequest(format!("Invalid UTF-8 in video_id: {}", e))
+            })?;
+        } else if item.name() == "original_filename" {
+            // 원본 파일명 처리
+            let mut buffer = Vec::new();
+            let mut stream = item.into_stream();
+            while let Some(chunk) = stream.try_next().await? {
+                buffer.extend_from_slice(&chunk);
+            }
+            original_filename = String::from_utf8(buffer).map_err(|e| {
+                actix_web::error::ErrorBadRequest(format!("Invalid UTF-8 in original_filename: {}", e))
+            })?;
+        }
+    }
+
+    if uploaded_file_path.is_empty() {
+        return Ok(HttpResponse::BadRequest().json(ApiResponse::<()> {
+            success: false,
+            data: None,
+            error: Some("비디오 파일이 업로드되지 않았습니다.".to_string()),
+        }));
+    }
+
+    // video_id가 없으면 원본 파일명 사용
+    if video_id.is_empty() {
+        if !original_filename.is_empty() {
+            // 원본 파일명에서 확장자 제거
+            if let Some(dot_pos) = original_filename.rfind('.') {
+                video_id = original_filename[..dot_pos].to_string();
+            } else {
+                video_id = original_filename;
+            }
+        } else {
+            // 원본 파일명도 없으면 기본값 사용
+            video_id = "uploaded_video".to_string();
+        }
+    }
+
+    // 절대 경로로 변환
+    let absolute_path = fs::canonicalize(&uploaded_file_path)?;
+    let absolute_path_str = absolute_path.to_string_lossy().to_string();
+
+    let args = serde_json::json!({
+        "video_path": absolute_path_str,
+        "video_id": video_id
+    });
+    
+    match MCPClient::call_function("add_video_to_db", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    let result_data = if let Some(result_value) = data.get("result") {
+                        result_value.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("비디오 업로드 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
+// 비디오 검색 API 엔드포인트
+async fn search_video(req: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "query": req["query"],
+        "top_k": req["top_k"].as_u64().unwrap_or(5)
+    });
+    
+    match MCPClient::call_function("search_video_in_db", args).await {
+        Ok(result) => {
+            println!("Python MCP 클라이언트 반환값: {}", result); // 디버깅 로그
+            
+            // Python MCP 클라이언트 반환값에서 JSON 부분만 추출
+            let json_start = result.find('[');
+            let json_end = result.rfind(']');
+            
+            if let (Some(start), Some(end)) = (json_start, json_end) {
+                let json_str = &result[start..=end];
+                println!("추출된 JSON 문자열: {}", json_str); // 디버깅 로그
+                
+                // 이스케이프된 문자열을 처리
+                let unescaped_str = json_str.replace("\\\"", "\"").replace("\\\\", "\\");
+                println!("이스케이프 해제된 문자열: {}", unescaped_str); // 디버깅 로그
+                
+                // JSON 문자열을 파싱
+                match serde_json::from_str::<serde_json::Value>(&unescaped_str) {
+                    Ok(data) => {
+                        println!("성공적으로 파싱됨: {:?}", data); // 디버깅 로그
+                        Ok(HttpResponse::Ok().json(ApiResponse {
+                            success: true,
+                            data: Some(data),
+                            error: None,
+                        }))
+                    },
+                    Err(e) => {
+                        println!("JSON 파싱 오류: {}", e); // 디버깅 로그
+                        // JSON 파싱 실패 시 빈 배열 반환
+                        Ok(HttpResponse::Ok().json(ApiResponse {
+                            success: true,
+                            data: Some(serde_json::json!([])),
+                            error: None,
+                        }))
+                    }
+                }
+            } else {
+                println!("JSON 배열을 찾을 수 없음"); // 디버깅 로그
+                // JSON 배열을 찾을 수 없는 경우 빈 배열 반환
+                Ok(HttpResponse::Ok().json(ApiResponse {
+                    success: true,
+                    data: Some(serde_json::json!([])),
+                    error: None,
+                }))
+            }
+        },
+        Err(e) => {
+            println!("비디오 검색 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
+// 비디오 삭제 API 엔드포인트
+async fn delete_video(req: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "video_id": req["video_id"]
+    });
+    
+    match MCPClient::call_function("clear_video_from_db", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    let result_data = if let Some(result_value) = data.get("result") {
+                        result_value.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("비디오 삭제 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
 async fn health_check() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "status": "healthy",
@@ -510,6 +763,10 @@ async fn main() -> std::io::Result<()> {
             .route("/api/save-single-video", web::post().to(save_single_video_embedding))
             .route("/api/save-single-video-semantic", web::post().to(save_single_video_semantic_embedding))
             .route("/api/compare-chunking", web::post().to(compare_chunking_methods))
+            // 비디오 업로드 및 검색 API 엔드포인트들
+            .route("/api/upload-video", web::post().to(upload_video))
+            .route("/api/search-video", web::post().to(search_video))
+            .route("/api/delete-video", web::post().to(delete_video))
     })
     .bind("127.0.0.1:8080")?
     .run()

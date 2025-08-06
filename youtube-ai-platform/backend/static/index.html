@@ -364,13 +364,18 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="semantic-chunking-tab" data-bs-toggle="tab" data-bs-target="#semantic-chunking" type="button" role="tab">
-                        <i class="fas fa-brain me-2"></i>의미 기반 청킹
+                    <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
+                        <i class="fas fa-search me-2"></i>유사도 검색
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="similarity-tab" data-bs-toggle="tab" data-bs-target="#similarity" type="button" role="tab">
-                        <i class="fas fa-search me-2"></i>유사도 검색
+                    <button class="nav-link" id="video-upload-tab" data-bs-toggle="tab" data-bs-target="#video-upload" type="button" role="tab">
+                        <i class="fas fa-upload me-2"></i>비디오 업로드
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="video-search-tab" data-bs-toggle="tab" data-bs-target="#video-search" type="button" role="tab">
+                        <i class="fas fa-video me-2"></i>비디오 검색
                     </button>
                 </li>
             </ul>
@@ -575,651 +580,59 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 비디오 업로드 탭 -->
+                <div class="tab-pane fade" id="video-upload" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-upload me-2"></i>비디오 업로드
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label for="video-file" class="form-label">비디오 파일 선택</label>
+                                <input type="file" id="video-file" class="form-control" accept="video/*">
+                                <div class="form-text">지원 형식: MP4, AVI, MOV, MKV 등</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="video-id" class="form-label">비디오 ID (선택사항)</label>
+                                <input type="text" id="video-id" class="form-control" placeholder="비디오 식별자 (없으면 파일명 사용)">
+                            </div>
+                            <button class="btn btn-primary" onclick="uploadVideo()">
+                                <i class="fas fa-upload me-2"></i>업로드
+                            </button>
+                            <div id="video-upload-result"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 비디오 검색 탭 -->
+                <div class="tab-pane fade" id="video-search" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-video me-2"></i>비디오 검색
+                        </div>
+                        <div class="card-body">
+                            <div class="input-group mb-3">
+                                <input type="text" id="video-search-query" class="form-control" placeholder="검색할 텍스트를 입력하세요">
+                                <select id="video-search-top-k" class="form-select" style="max-width: 100px;">
+                                    <option value="3">3개</option>
+                                    <option value="5" selected>5개</option>
+                                    <option value="10">10개</option>
+                                </select>
+                                <button class="btn btn-success" onclick="searchVideo()">
+                                    <i class="fas fa-search me-2"></i>검색
+                                </button>
+                            </div>
+                            <div id="video-search-result"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // YouTube 검색
-        async function searchYouTube() {
-            const query = document.getElementById('search-input').value;
-            if (!query) {
-                showAlert('search-result', '검색어를 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('search-result');
-            try {
-                const response = await fetch('/api/search-youtube', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: query })
-                });
-
-                const result = await response.json();
-                console.log('검색 결과:', result);
-
-                if (result.success && result.data) {
-                    displaySearchResults(result.data);
-                } else {
-                    showAlert('search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                }
-            } catch (error) {
-                console.error('API 오류:', error);
-                showAlert('search-result', `API 호출 중 오류: ${error.message}`, 'danger');
-            }
-        }
-
-        // 채널 분석
-        async function analyzeChannel() {
-            const url = document.getElementById('channel-url').value;
-            if (!url) {
-                showAlert('channel-result', 'URL을 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('channel-result');
-            try {
-                const response = await fetch('/api/channel-info', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ video_url: url })
-                });
-
-                const result = await response.json();
-                console.log('채널 분석 결과:', result);
-
-                if (result.success && result.data) {
-                    displayChannelResult(result.data);
-                } else {
-                    showAlert('channel-result', `분석 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                }
-            } catch (error) {
-                console.error('API 오류:', error);
-                showAlert('channel-result', `API 호출 중 오류: ${error.message}`, 'danger');
-            }
-        }
-
-        // 자막 추출
-        async function extractTranscript() {
-            const url = document.getElementById('transcript-url').value;
-            if (!url) {
-                showAlert('transcript-result', 'URL을 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('transcript-result');
-            try {
-                const response = await fetch('/api/transcript', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-
-                const result = await response.json();
-                console.log('자막 추출 결과:', result);
-
-                if (result.success && result.data) {
-                    displayTranscriptResult(result.data);
-                } else {
-                    showAlert('transcript-result', `추출 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                }
-            } catch (error) {
-                console.error('API 오류:', error);
-                showAlert('transcript-result', `API 호출 중 오류: ${error.message}`, 'danger');
-            }
-        }
-
-        // 벡터 저장
-        async function saveVector() {
-            const channelId = document.getElementById('channel-id').value;
-            if (!channelId) {
-                showAlert('vector-result', '채널 ID를 입력해주세요.', 'warning');
-                return;
-            }
-
-            // 진행 상황 표시 시작
-            const container = document.getElementById('vector-result');
-            container.innerHTML = `
-                <div class="progress-container">
-                    <div class="progress-header">
-                        <h5><i class="fas fa-database me-2"></i>벡터 저장 진행 중...</h5>
-                        <div class="progress-status">채널 ID: ${channelId}</div>
-                    </div>
-                    <div class="progress mb-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" 
-                             style="width: 0%" 
-                             id="progress-bar">0%</div>
-                    </div>
-                    <div class="progress-log" id="progress-log">
-                        <div class="log-entry">
-                            <i class="fas fa-play me-2"></i>벡터 저장을 시작합니다...
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            const progressBar = document.getElementById('progress-bar');
-            const progressLog = document.getElementById('progress-log');
-
-            function updateProgress(percent, message) {
-                progressBar.style.width = percent + '%';
-                progressBar.textContent = percent + '%';
-                
-                const logEntry = document.createElement('div');
-                logEntry.className = 'log-entry';
-                
-                // 메시지 타입에 따라 아이콘 변경
-                let icon = 'fas fa-info-circle';
-                if (message.includes('✅') || message.includes('완료')) {
-                    icon = 'fas fa-check-circle';
-                    logEntry.style.color = '#28a745';
-                } else if (message.includes('❌') || message.includes('실패')) {
-                    icon = 'fas fa-exclamation-triangle';
-                    logEntry.style.color = '#dc3545';
-                } else if (message.includes('🎉')) {
-                    icon = 'fas fa-star';
-                    logEntry.style.color = '#ffc107';
-                } else if (message.includes('📝')) {
-                    icon = 'fas fa-file-alt';
-                    logEntry.style.color = '#17a2b8';
-                }
-                
-                logEntry.innerHTML = `<i class="${icon} me-2"></i>${message}`;
-                progressLog.appendChild(logEntry);
-                progressLog.scrollTop = progressLog.scrollHeight;
-            }
-
-            try {
-                updateProgress(10, '채널 정보를 가져오는 중...');
-                
-                // 실시간 진행 상황 시뮬레이션
-                let step = 0;
-                const progressInterval = setInterval(() => {
-                    const currentProgress = parseInt(progressBar.style.width) || 0;
-                    if (currentProgress < 90) {
-                        step++;
-                        const newProgress = currentProgress + Math.random() * 8;
-                        const messages = [
-                            '채널 영상 목록을 가져오는 중...',
-                            '영상 자막을 추출하는 중...',
-                            '자막을 청크로 분할하는 중...',
-                            'OpenAI 임베딩을 생성하는 중...',
-                            '데이터베이스에 저장하는 중...',
-                            '다음 영상을 처리하는 중...'
-                        ];
-                        const message = messages[step % messages.length];
-                        updateProgress(Math.min(newProgress, 90), message);
-                    }
-                }, 1500);
-                
-                const response = await fetch('/api/save-channel', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ channel_id: channelId })
-                });
-
-                clearInterval(progressInterval);
-                updateProgress(95, '최종 처리 중...');
-
-                const result = await response.json();
-                console.log('벡터 저장 결과:', result);
-
-                if (result.success) {
-                    updateProgress(100, '🎉 벡터 저장이 완료되었습니다!');
-                    
-                    // 완료 메시지 표시
-                    setTimeout(() => {
-                        container.innerHTML = `
-                            <div class="alert alert-success fade-in">
-                                <i class="fas fa-check-circle me-2"></i>
-                                <strong>벡터 저장 완료!</strong><br>
-                                ${result.data || '채널의 자막이 성공적으로 벡터로 변환되어 저장되었습니다.'}
-                            </div>
-                        `;
-                    }, 2000);
-                } else {
-                    updateProgress(100, '❌ 오류가 발생했습니다.');
-                    
-                    setTimeout(() => {
-                        showAlert('vector-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                    }, 1000);
-                }
-            } catch (error) {
-                console.error('API 오류:', error);
-                updateProgress(100, 'API 호출 중 오류가 발생했습니다.');
-                
-                setTimeout(() => {
-                    showAlert('vector-result', `API 호출 중 오류: ${error.message}`, 'danger');
-                }, 1000);
-            }
-        }
-
-        // 단일 영상 저장
-        async function saveSingleVideo() {
-            const url = document.getElementById('single-video-url').value;
-            if (!url) {
-                showAlert('single-video-result', 'URL을 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('single-video-result');
-            try {
-                const response = await fetch('/api/save-single-video', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ video_url: url })
-                });
-
-                const result = await response.json();
-                console.log('단일 영상 저장 결과:', result);
-
-                if (result.success) {
-                    showAlert('single-video-result', '단일 영상 저장이 완료되었습니다.', 'success');
-                    setTimeout(() => {
-                        document.getElementById('single-video-result').innerHTML = ''; // 결과 컨테이너 비우기
-                    }, 2000);
-                } else {
-                    showAlert('single-video-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                }
-            } catch (error) {
-                console.error('API 오류:', error);
-                showAlert('single-video-result', `API 호출 중 오류: ${error.message}`, 'danger');
-            }
-        }
-
-        // 결과 표시 함수들
-        function displaySearchResults(videos) {
-            const container = document.getElementById('search-result');
-            
-            if (!Array.isArray(videos) || videos.length === 0) {
-                container.innerHTML = '<div class="result-container">검색 결과가 없습니다.</div>';
-                return;
-            }
-
-            let html = '<div class="result-container fade-in">';
-            html += '<h4><i class="fas fa-youtube me-2"></i>검색 결과 (' + videos.length + '개)</h4>';
-            
-            videos.forEach((video, index) => {
-                // 비디오 ID 추출 로직 개선
-                let videoId = '';
-                if (video.url) {
-                    const urlMatch = video.url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-                    videoId = urlMatch ? urlMatch[1] : '';
-                }
-                
-                // 썸네일 URL 생성
-                const thumbnailUrl = video.thumbnailUrl || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '');
-                
-                html += `
-                    <div class="video-item">
-                        <img src="${thumbnailUrl}" 
-                              class="video-thumbnail" 
-                              alt="썸네일"
-                              onerror="this.onerror=null; this.src='${videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : ''}';"
-                              onload="console.log('비디오 썸네일 로딩 성공:', this.src)">
-                        <div class="video-info">
-                            <div class="video-title">${video.title || '제목 없음'}</div>
-                            <div class="video-meta">
-                                <i class="fas fa-user me-2"></i>${video.channelName || '채널명 없음'}<br>
-                                <i class="fas fa-id-card me-2"></i>채널 ID: ${video.channelId || 'N/A'}<br>
-                                <i class="fas fa-calendar me-2"></i>${video.publishedDate ? new Date(video.publishedDate).toLocaleDateString() : '날짜 없음'}
-                            </div>
-                            <div class="video-stats">
-                                <span class="stat-item">
-                                    <i class="fas fa-eye"></i>조회수: ${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}
-                                </span>
-                                <span class="stat-item">
-                                    <i class="fas fa-thumbs-up"></i>좋아요: ${video.likeCount ? video.likeCount.toLocaleString() : 'N/A'}
-                                </span>
-                            </div>
-                            <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                <i class="fab fa-youtube me-1"></i>YouTube에서 보기
-                            </a>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            container.innerHTML = html;
-        }
-
-                function displayChannelResult(data) {
-            const container = document.getElementById('channel-result');
-            console.log('채널 데이터:', data); // 디버깅용
-            
-            if (data.error) {
-                showAlert('channel-result', data.error, 'warning');
-                return;
-            }
-
-            const html = `
-                <div class="result-container fade-in">
-                    <h4><i class="fas fa-tv me-2"></i>채널 정보</h4>
-                    <div class="channel-info">
-                        <div class="row">
-                                                         <div class="col-md-3">
-                                 <img src="${data.channelThumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIwQzIwIDIwIDIwIDIwIDIwIDIwWiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4KPC9zdmc+'}" 
-                                     class="img-fluid rounded" alt="채널 썸네일"
-                                     onerror="console.log('채널 썸네일 로딩 실패:', this.src); this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIwIDIwQzIwIDIwIDIwIDIwIDIwIDIwWiIgZmlsbD0iIzk5OTk5OSIvPgo8L3N2Zz4KPC9zdmc+'"
-                                     onload="console.log('채널 썸네일 로딩 성공:', this.src)">
-                             </div>
-                            <div class="col-md-9">
-                                <h5>${data.channelTitle || '채널명 없음'}</h5>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <p><i class="fas fa-users me-2"></i>구독자: ${data.subscriberCount ? data.subscriberCount.toLocaleString() : 'N/A'}</p>
-                                        <p><i class="fas fa-video me-2"></i>영상 수: ${data.videoCount || 'N/A'}</p>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <p><i class="fas fa-eye me-2"></i>총 조회수: ${data.viewCount ? data.viewCount.toLocaleString() : 'N/A'}</p>
-                                        <p><i class="fas fa-calendar me-2"></i>가입일: ${data.createdDate ? new Date(data.createdDate).toLocaleDateString() : 'N/A'}</p>
-                                    </div>
-                                </div>
-                                <div class="mt-2">
-                                    <a href="${data.channelUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                        <i class="fab fa-youtube me-1"></i>채널 방문
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <h5 class="mt-4 mb-3"><i class="fas fa-list me-2"></i>최근 영상</h5>
-                    ${data.videos && Array.isArray(data.videos) ? data.videos.map(video => {
-                        // 비디오 ID 추출 로직 개선
-                        let videoId = '';
-                        if (video.videoId) {
-                            videoId = video.videoId;
-                        } else if (video.url) {
-                            const urlMatch = video.url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-                            videoId = urlMatch ? urlMatch[1] : '';
-                        }
-                        
-                        // 썸네일 URL 생성
-                        const thumbnailUrl = video.thumbnail || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '');
-                        
-                        return `
-                            <div class="video-item">
-                                <img src="${thumbnailUrl}" 
-                                      class="video-thumbnail" 
-                                      alt="썸네일" 
-                                      onerror="this.onerror=null; this.src='${videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : ''}';"
-                                      onload="console.log('비디오 썸네일 로딩 성공:', this.src)">
-                                <div class="video-info">
-                                    <div class="video-title">${video.title || '제목 없음'}</div>
-                                    <div class="video-meta">
-                                        <i class="fas fa-calendar me-2"></i>${video.publishedDate ? new Date(video.publishedDate).toLocaleDateString() : '날짜 없음'}
-                                        <span class="ms-3"><i class="fas fa-eye me-2"></i>${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}</span>
-                                    </div>
-                                    <div class="mt-2">
-                                        <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            <i class="fab fa-youtube me-1"></i>영상 보기
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('') : '<p>최근 영상 정보를 가져올 수 없습니다.</p>'}
-                </div>
-            `;
-            container.innerHTML = html;
-        }
-
-        function displayTranscriptResult(data) {
-            const container = document.getElementById('transcript-result');
-            
-            // 오류 체크 개선
-            if (data.error || (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없')))) {
-                const errorMsg = data.error || data.transcript || '자막 추출에 실패했습니다.';
-                
-                // 자막이 없는 경우 특별한 메시지 표시
-                if (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없'))) {
-                    container.innerHTML = `
-                        <div class="alert alert-warning fade-in">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>자막이 없습니다!</strong><br>
-                            이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
-                            다른 영상을 시도해보세요.
-                        </div>
-                    `;
-                } else {
-                    showAlert('transcript-result', errorMsg, 'warning');
-                }
-                return;
-            }
-
-            // video_id 추출 (URL에서)
-            const url = document.getElementById('transcript-url').value;
-            const videoIdMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-            const videoId = videoIdMatch ? videoIdMatch[1] : 'unknown';
-
-            const html = `
-                <div class="result-container fade-in">
-                    <h4><i class="fas fa-closed-captioning me-2"></i>자막 내용</h4>
-                    <div class="alert alert-success">
-                        <i class="fas fa-check-circle me-2"></i>
-                        <strong>자막 추출 성공!</strong>
-                    </div>
-                    <div class="video-item">
-                        <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
-                             class="video-thumbnail" 
-                             alt="썸네일" 
-                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg';"
-                             onload="console.log('자막 추출 영상 썸네일 로딩 성공:', this.src)">
-                        <div class="video-info">
-                            <div class="video-title">${data.title || '제목 없음'}</div>
-                            <div class="video-meta">
-                                <i class="fas fa-clock me-2"></i>길이: ${data.duration || 'N/A'}<br>
-                                <i class="fas fa-file-text me-2"></i>자막 길이: ${data.transcript ? data.transcript.length : 0}자
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <h5><i class="fas fa-align-left me-2"></i>전체 자막</h5>
-                        <div class="transcript-content">
-                            <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto;">${data.transcript || '자막을 찾을 수 없습니다.'}</pre>
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.innerHTML = html;
-        }
-
-        // 유틸리티 함수들
-        function showLoading(containerId) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <span>AI가 분석 중입니다...</span>
-                </div>
-            `;
-        }
-
-        function showAlert(containerId, message, type) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = `
-                <div class="alert alert-${type} fade-in">
-                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
-                    ${message}
-                </div>
-            `;
-        }
-
-        // 유사도 검색
-        async function searchSimilar() {
-            const query = document.getElementById('similarity-query').value;
-            if (!query) {
-                showAlert('similarity-result', '검색어를 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('similarity-result');
-
-            try {
-                const response = await fetch('/api/search-similar', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ query: query })
-                });
-
-                const data = await response.json();
-                console.log('유사도 검색 결과:', data);
-
-                if (data.success && data.data) {
-                    displaySimilarityResult(data.data);
-                } else {
-                    showAlert('similarity-result', data.error || '유사도 검색에 실패했습니다.', 'danger');
-                }
-            } catch (error) {
-                console.error('유사도 검색 오류:', error);
-                showAlert('similarity-result', '유사도 검색 중 오류가 발생했습니다.', 'danger');
-            }
-        }
-
-        function displaySimilarityResult(data) {
-            const container = document.getElementById('similarity-result');
-            
-            if (data.error) {
-                showAlert('similarity-result', data.error, 'warning');
-                return;
-            }
-
-            const html = `
-                <div class="result-container fade-in">
-                    <h4><i class="fas fa-search me-2"></i>유사도 검색 결과</h4>
-                    <div class="video-item">
-                        <img src="https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg" 
-                             class="video-thumbnail" 
-                             alt="썸네일" 
-                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg';">
-                        <div class="video-info">
-                            <div class="video-title">유사도 점수: ${data.score ? (data.score * 100).toFixed(2) + '%' : 'N/A'}</div>
-                            <div class="video-meta">
-                                <i class="fas fa-video me-2"></i>비디오 ID: ${data.video_id}<br>
-                                <i class="fas fa-list-ol me-2"></i>청크 인덱스: ${data.chunk_index}<br>
-                                <i class="fas fa-link me-2"></i><a href="${data.url}" target="_blank">영상 보기</a>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4">
-                        <h5><i class="fas fa-align-left me-2"></i>유사한 자막 내용</h5>
-                        <div class="transcript-content">
-                            <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;">${data.chunk_text || '내용을 찾을 수 없습니다.'}</pre>
-                        </div>
-                    </div>
-                </div>
-            `;
-            container.innerHTML = html;
-        }
-
-        // 단일 영상 저장 미리보기 및 저장 로직
-        async function previewTranscript() {
-            const url = document.getElementById('single-video-url').value;
-            if (!url) {
-                showAlert('preview-result', 'URL을 입력해주세요.', 'warning');
-                return;
-            }
-
-            showLoading('preview-result');
-            try {
-                const response = await fetch('/api/transcript', { // 자막 추출 API 호출
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-
-                const result = await response.json();
-                console.log('자막 미리보기 결과:', result);
-
-                if (result.success && result.data) {
-                    // displayPreviewResult 함수 호출 (단일 영상 저장용)
-                    displayPreviewResult(result);
-                } else {
-                    showAlert('preview-result', `자막 미리보기 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
-                    document.getElementById('save-section').style.display = 'none'; // 저장 섹션 숨김
-                }
-            } catch (error) {
-                console.error('자막 미리보기 API 오류:', error);
-                showAlert('preview-result', `자막 미리보기 중 오류: ${error.message}`, 'danger');
-                document.getElementById('save-section').style.display = 'none'; // 저장 섹션 숨김
-            }
-        }
-
-        // 자막 미리보기 결과 표시 (단일 영상 저장용)
-        function displayPreviewResult(result) {
-            const container = document.getElementById('preview-result');
-            
-            console.log('displayPreviewResult 호출됨:', result); // 디버깅용
-            
-            if (result.success && result.data) {
-                const data = result.data;
-                const transcript = data.transcript || '';
-                const videoId = data.video_id || '알 수 없음';
-                
-                console.log('자막 내용:', transcript); // 디버깅용
-                
-                // 자막이 없는 경우 체크
-                if (!transcript || transcript.includes('자막 추출 실패') || transcript.includes('자막을 찾을 수 없')) {
-                    container.innerHTML = `
-                        <div class="alert alert-warning fade-in">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>자막이 없습니다!</strong><br>
-                            이 영상에는 자막이 없거나 자막 추출이 불가능합니다.<br>
-                            다른 영상을 시도해보세요.
-                        </div>
-                    `;
-                    document.getElementById('save-section').style.display = 'none';
-                    return;
-                }
-                
-                // 자막 내용 미리보기 표시
-                container.innerHTML = `
-                    <div class="alert alert-success">
-                        <h5>자막 내용 미리보기</h5>
-                        <p><strong>비디오 ID:</strong> ${videoId}</p>
-                        <p><strong>자막 추출 성공!</strong> (${transcript.length}자)</p>
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 10px;">
-                            <pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; color: #333; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5;">${transcript}</pre>
-                        </div>
-                    </div>
-                `;
-                
-                document.getElementById('save-section').style.display = 'block'; // 저장 섹션 표시
-            } else {
-                container.innerHTML = `
-                    <div class="alert alert-danger" role="alert">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>오류!</strong> ${result.error || '자막 미리보기에 실패했습니다.'}
-                    </div>
-                `;
-                document.getElementById('save-section').style.display = 'none';
-            }
-        }
-
-        // Enter 키 지원
-        document.addEventListener('DOMContentLoaded', function() {
-            const inputs = document.querySelectorAll('.form-control');
-            inputs.forEach(input => {
-                input.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        const button = this.closest('.card-body').querySelector('.btn');
-                        if (button) {
-                            button.click();
-                        }
-                    }
-                });
-            });
-        });
-    </script>
+    <script src="/static/app.js"></script>
 </body>
 </html>
                     

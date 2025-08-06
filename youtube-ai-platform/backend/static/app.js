@@ -614,12 +614,31 @@ function displaySaveChannelResult(result) {
 }
 
 // 유틸리티 함수들
+function showAlert(elementId, message, type = 'info') {
+    const container = document.getElementById(elementId);
+    container.innerHTML = `
+        <div class="alert alert-${type}" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            ${message}
+        </div>
+    `;
+}
+
 function showLoading(elementId) {
-    document.getElementById(elementId).style.display = 'block';
+    const container = document.getElementById(elementId);
+    container.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">로딩 중...</span>
+            </div>
+            <p class="mt-2">처리 중입니다...</p>
+        </div>
+    `;
 }
 
 function hideLoading(elementId) {
-    document.getElementById(elementId).style.display = 'none';
+    const container = document.getElementById(elementId);
+    container.innerHTML = '';
 }
 
 function hideResult(elementId) {
@@ -647,37 +666,48 @@ function formatNumber(num) {
 
 // Enter 키 이벤트 처리
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('searchQuery').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') searchSimilar();
-    });
+    // 실제 HTML에 존재하는 요소들만 이벤트 리스너 추가
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchYouTube();
+        });
+    }
     
-    document.getElementById('youtubeSearchQuery').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') searchYouTube();
-    });
+    const channelUrl = document.getElementById('channel-url');
+    if (channelUrl) {
+        channelUrl.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') analyzeChannel();
+        });
+    }
     
-    document.getElementById('channelVideoUrl').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') getChannelInfo();
-    });
+    const transcriptUrl = document.getElementById('transcript-url');
+    if (transcriptUrl) {
+        transcriptUrl.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') extractTranscript();
+        });
+    }
     
-    document.getElementById('transcriptUrl').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') getTranscript();
-    });
+    const singleVideoUrl = document.getElementById('single-video-url');
+    if (singleVideoUrl) {
+        singleVideoUrl.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') saveSingleVideo();
+        });
+    }
     
-    document.getElementById('saveChannelId').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') saveChannel();
-    });
+    const similarityQuery = document.getElementById('similarity-query');
+    if (similarityQuery) {
+        similarityQuery.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchSimilar();
+        });
+    }
     
-    document.getElementById('single-video-url').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') previewTranscript();
-    });
-    
-    document.getElementById('semantic-video-url').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') saveSemanticVideo();
-    });
-    
-    document.getElementById('compare-video-url').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') compareChunking();
-    });
+    const videoSearchQuery = document.getElementById('video-search-query');
+    if (videoSearchQuery) {
+        videoSearchQuery.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchVideo();
+        });
+    }
 });
 
 // 의미 기반 청킹 저장
@@ -859,4 +889,548 @@ function displayCompareResult(result) {
             </div>
         `;
     }
+} 
+
+// 비디오 업로드 함수
+async function uploadVideo() {
+    const fileInput = document.getElementById('video-file');
+    const videoIdInput = document.getElementById('video-id');
+    const resultDiv = document.getElementById('video-upload-result');
+    
+    if (!fileInput.files[0]) {
+        showAlert('video-upload-result', '비디오 파일을 선택해주세요.', 'warning');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const videoId = videoIdInput.value || file.name.replace(/\.[^/.]+$/, "");
+    
+    showLoading('video-upload-result');
+    
+    try {
+        // 파일을 서버로 업로드
+        const formData = new FormData();
+        formData.append('video', file);
+        formData.append('video_id', videoId);
+        formData.append('original_filename', file.name); // 원본 파일명 추가
+        
+        const response = await fetch('/api/upload-video', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>성공!</strong> 비디오가 성공적으로 업로드되었습니다.
+                    <br><small>비디오 ID: ${videoId}</small>
+                </div>
+            `;
+        } else {
+            showAlert('video-upload-result', `업로드 실패: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        console.error('업로드 오류:', error);
+        showAlert('video-upload-result', `업로드 중 오류가 발생했습니다: ${error.message}`, 'danger');
+    }
+}
+
+// 비디오 검색 함수
+async function searchVideo() {
+    const query = document.getElementById('video-search-query').value.trim();
+    const topK = parseInt(document.getElementById('video-search-top-k').value) || 5;
+    
+    if (!query) {
+        showAlert('video-search-result', '검색어를 입력해주세요.', 'warning');
+        return;
+    }
+    
+    showLoading('video-search-result');
+    
+    try {
+        const response = await fetch('/api/search-video', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: query,
+                top_k: topK
+            })
+        });
+        
+        const result = await response.json();
+        console.log('백엔드 응답:', result); // 디버깅 로그 추가
+        
+        if (result.success && result.data) {
+            // 백엔드에서 반환하는 데이터 구조 처리
+            let searchResults;
+            console.log('result.data:', result.data); // 디버깅 로그 추가
+            
+            if (result.data.message) {
+                // message 필드 안의 JSON 문자열을 파싱
+                console.log('message 필드 발견:', result.data.message); // 디버깅 로그 추가
+                try {
+                    searchResults = JSON.parse(result.data.message);
+                    console.log('파싱된 결과:', searchResults); // 디버깅 로그 추가
+                } catch (e) {
+                    console.error('JSON 파싱 오류:', e);
+                    showAlert('video-search-result', '검색 결과 파싱 중 오류가 발생했습니다.', 'danger');
+                    return;
+                }
+            } else if (Array.isArray(result.data)) {
+                // 직접 배열인 경우
+                searchResults = result.data;
+                console.log('직접 배열:', searchResults); // 디버깅 로그 추가
+            } else {
+                // 다른 경우
+                searchResults = result.data;
+                console.log('기타 경우:', searchResults); // 디버깅 로그 추가
+            }
+            
+            console.log('최종 검색 결과:', searchResults); // 디버깅 로그 추가
+            displayVideoSearchResult(searchResults, query);
+        } else {
+            showAlert('video-search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('검색 오류:', error);
+        showAlert('video-search-result', `검색 중 오류가 발생했습니다: ${error.message}`, 'danger');
+    }
+}
+
+// 비디오 검색 결과 표시
+function displayVideoSearchResult(results, query) {
+    const container = document.getElementById('video-search-result');
+    
+    // results가 배열이 아닌 경우 처리
+    if (!results || !Array.isArray(results)) {
+        if (results && typeof results === 'object' && results.error) {
+            container.innerHTML = `
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>검색 오류!</strong> ${results.error}
+                </div>
+            `;
+        } else {
+            container.innerHTML = `
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>검색 결과 없음</strong> "${query}"에 대한 검색 결과가 없습니다.
+                </div>
+            `;
+        }
+        return;
+    }
+    
+    if (results.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info" role="alert">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>검색 결과 없음</strong> "${query}"에 대한 검색 결과가 없습니다.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-search me-2"></i>검색 결과: "${query}"</h5>
+                <small>총 ${results.length}개 결과</small>
+            </div>
+            <div class="card-body">
+    `;
+    
+    results.forEach((result, index) => {
+        const timestamp = formatTimestamp(result.timestamp);
+        const similarity = (result.similarity * 100).toFixed(1);
+        
+        html += `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6 class="card-title">
+                                <i class="fas fa-video me-2"></i>${result.video_id}
+                            </h6>
+                            <p class="card-text">
+                                <strong>시간:</strong> ${timestamp}<br>
+                                <strong>파일:</strong> ${result.video_path}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="badge bg-success fs-6">
+                                유사도: ${similarity}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// 시간 포맷팅 함수 (초 -> HH:MM:SS)
+function formatTimestamp(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+} 
+
+// 유틸리티 함수들
+function showAlert(elementId, message, type = 'info') {
+    const container = document.getElementById(elementId);
+    container.innerHTML = `
+        <div class="alert alert-${type}" role="alert">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+            ${message}
+        </div>
+    `;
+}
+
+function showLoading(elementId) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">로딩 중...</span>
+            </div>
+            <p class="mt-2">처리 중입니다...</p>
+        </div>
+    `;
+}
+
+function hideLoading(elementId) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = '';
+}
+
+// YouTube 검색
+async function searchYouTube() {
+    const query = document.getElementById('search-input').value;
+    if (!query) {
+        showAlert('search-result', '검색어를 입력해주세요.', 'warning');
+        return;
+    }
+
+    showLoading('search-result');
+    try {
+        const response = await fetch('/api/search-youtube', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+        });
+
+        const result = await response.json();
+        console.log('검색 결과:', result);
+
+        if (result.success && result.data) {
+            displaySearchResults(result.data);
+        } else {
+            showAlert('search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('API 오류:', error);
+        showAlert('search-result', `API 호출 중 오류: ${error.message}`, 'danger');
+    }
+}
+
+// 채널 분석
+async function analyzeChannel() {
+    const url = document.getElementById('channel-url').value;
+    if (!url) {
+        showAlert('channel-result', 'URL을 입력해주세요.', 'warning');
+        return;
+    }
+
+    showLoading('channel-result');
+    try {
+        const response = await fetch('/api/channel-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_url: url })
+        });
+
+        const result = await response.json();
+        console.log('채널 분석 결과:', result);
+
+        if (result.success && result.data) {
+            displayChannelResult(result.data);
+        } else {
+            showAlert('channel-result', `분석 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('API 오류:', error);
+        showAlert('channel-result', `API 호출 중 오류: ${error.message}`, 'danger');
+    }
+}
+
+// 자막 추출
+async function extractTranscript() {
+    const url = document.getElementById('transcript-url').value;
+    if (!url) {
+        showAlert('transcript-result', 'URL을 입력해주세요.', 'warning');
+        return;
+    }
+
+    showLoading('transcript-result');
+    try {
+        const response = await fetch('/api/transcript', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        });
+
+        const result = await response.json();
+        console.log('자막 추출 결과:', result);
+
+        if (result.success && result.data) {
+            displayTranscriptResult(result.data);
+        } else {
+            showAlert('transcript-result', `추출 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('API 오류:', error);
+        showAlert('transcript-result', `API 호출 중 오류: ${error.message}`, 'danger');
+    }
+}
+
+// 유사도 검색
+async function searchSimilar() {
+    const query = document.getElementById('similarity-query').value;
+    if (!query) {
+        showAlert('similarity-result', '검색어를 입력해주세요.', 'warning');
+        return;
+    }
+
+    showLoading('similarity-result');
+    try {
+        const response = await fetch('/api/search-similar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+        });
+
+        const result = await response.json();
+        console.log('유사도 검색 결과:', result);
+
+        if (result.success && result.data) {
+            displaySimilarityResult(result.data);
+        } else {
+            showAlert('similarity-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('API 오류:', error);
+        showAlert('similarity-result', `API 호출 중 오류: ${error.message}`, 'danger');
+    }
+}
+
+// 단일 영상 저장
+async function saveSingleVideo() {
+    const url = document.getElementById('single-video-url').value;
+    if (!url) {
+        showAlert('single-video-result', 'URL을 입력해주세요.', 'warning');
+        return;
+    }
+
+    showLoading('single-video-result');
+    try {
+        const response = await fetch('/api/save-single-video', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_url: url })
+        });
+
+        const result = await response.json();
+        console.log('단일 영상 저장 결과:', result);
+
+        if (result.success) {
+            showAlert('single-video-result', '단일 영상 저장이 완료되었습니다.', 'success');
+        } else {
+            showAlert('single-video-result', `저장 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('API 오류:', error);
+        showAlert('single-video-result', `API 호출 중 오류: ${error.message}`, 'danger');
+    }
+}
+
+// 결과 표시 함수들
+function displaySearchResults(videos) {
+    const container = document.getElementById('search-result');
+    
+    if (!Array.isArray(videos) || videos.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">검색 결과가 없습니다.</div>';
+        return;
+    }
+
+    let html = '<div class="card"><div class="card-header"><h5><i class="fas fa-youtube me-2"></i>검색 결과 (' + videos.length + '개)</h5></div><div class="card-body">';
+    
+    videos.forEach((video, index) => {
+        let videoId = '';
+        if (video.url) {
+            const urlMatch = video.url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+            videoId = urlMatch ? urlMatch[1] : '';
+        }
+        
+        const thumbnailUrl = video.thumbnailUrl || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '');
+        
+        html += `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <img src="${thumbnailUrl}" class="img-fluid rounded" alt="썸네일">
+                        </div>
+                        <div class="col-md-9">
+                            <h6 class="card-title">${video.title || '제목 없음'}</h6>
+                            <p class="card-text">
+                                <strong>채널:</strong> ${video.channelName || '채널명 없음'}<br>
+                                <strong>조회수:</strong> ${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}<br>
+                                <strong>좋아요:</strong> ${video.likeCount ? video.likeCount.toLocaleString() : 'N/A'}
+                            </p>
+                            <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="fab fa-youtube me-1"></i>YouTube에서 보기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div></div>';
+    container.innerHTML = html;
+}
+
+function displayChannelResult(data) {
+    const container = document.getElementById('channel-result');
+    
+    if (data.error) {
+        showAlert('channel-result', data.error, 'warning');
+        return;
+    }
+
+    const html = `
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tv me-2"></i>채널 정보</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <img src="${data.channelThumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPC9zdmc+'}" 
+                             class="img-fluid rounded" alt="채널 썸네일">
+                    </div>
+                    <div class="col-md-9">
+                        <h5>${data.channelTitle || '채널명 없음'}</h5>
+                        <p><strong>구독자:</strong> ${data.subscriberCount ? data.subscriberCount.toLocaleString() : 'N/A'}</p>
+                        <p><strong>영상 수:</strong> ${data.videoCount || 'N/A'}</p>
+                        <p><strong>총 조회수:</strong> ${data.viewCount ? data.viewCount.toLocaleString() : 'N/A'}</p>
+                        <a href="${data.channelUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="fab fa-youtube me-1"></i>채널 방문
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+function displayTranscriptResult(data) {
+    const container = document.getElementById('transcript-result');
+    
+    if (data.error || (data.transcript && (data.transcript.includes('자막 추출 실패') || data.transcript.includes('자막을 찾을 수 없')))) {
+        const errorMsg = data.error || data.transcript || '자막 추출에 실패했습니다.';
+        showAlert('transcript-result', errorMsg, 'warning');
+        return;
+    }
+
+    const url = document.getElementById('transcript-url').value;
+    const videoIdMatch = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : 'unknown';
+
+    const html = `
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-closed-captioning me-2"></i>자막 내용</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>자막 추출 성공!</strong>
+                </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
+                             class="img-fluid rounded" alt="썸네일">
+                    </div>
+                    <div class="col-md-9">
+                        <h6>${data.title || '제목 없음'}</h6>
+                        <p><strong>자막 길이:</strong> ${data.transcript ? data.transcript.length : 0}자</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <h6>전체 자막</h6>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto;">
+                        <pre style="white-space: pre-wrap; word-wrap: break-word;">${data.transcript || '자막을 찾을 수 없습니다.'}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+function displaySimilarityResult(data) {
+    const container = document.getElementById('similarity-result');
+    
+    if (data.error) {
+        showAlert('similarity-result', data.error, 'warning');
+        return;
+    }
+
+    const html = `
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-search me-2"></i>유사도 검색 결과</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <img src="https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg" 
+                             class="img-fluid rounded" alt="썸네일">
+                    </div>
+                    <div class="col-md-9">
+                        <h6>유사도 점수: ${data.score ? (data.score * 100).toFixed(2) + '%' : 'N/A'}</h6>
+                        <p><strong>비디오 ID:</strong> ${data.video_id}</p>
+                        <p><strong>청크 인덱스:</strong> ${data.chunk_index}</p>
+                        <a href="${data.url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="fab fa-youtube me-1"></i>영상 보기
+                        </a>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <h6>유사한 자막 내용</h6>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+                        <pre style="white-space: pre-wrap; word-wrap: break-word;">${data.chunk_text || '내용을 찾을 수 없습니다.'}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
 } 

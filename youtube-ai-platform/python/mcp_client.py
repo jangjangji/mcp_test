@@ -28,13 +28,16 @@ def call_mcp_function(function_name, args):
             result = mcp_server.get_youtube_transcript(args.get("url", ""))
         elif function_name == "save_single_video_embedding":
             result = mcp_server.save_single_video_embedding(args.get("video_url", ""))
-        elif function_name == "save_single_video_semantic_embedding":
-            result = mcp_server.save_single_video_semantic_embedding(
-                args.get("video_url", ""), 
-                args.get("chunk_method", "semantic")
-            )
-        elif function_name == "compare_chunking_methods":
-            result = mcp_server.compare_chunking_methods(args.get("video_url", ""))
+        # 비디오 업로드 및 검색 관련 함수들
+        elif function_name == "add_video_to_db":
+            result = mcp_server.add_video_to_db(args.get("video_path", ""), args.get("video_id", ""))
+        elif function_name == "search_video_in_db":
+            result = mcp_server.search_video_in_db(args.get("query", ""), args.get("top_k", 5))
+            # 검색 결과는 리스트이므로 JSON 문자열로 변환하여 반환
+            import json
+            return json.dumps(result)
+        elif function_name == "clear_video_from_db":
+            result = mcp_server.clear_video_from_db(args.get("video_id", ""))
         else:
             raise ValueError(f"Unknown function: {function_name}")
         
