@@ -1,43 +1,58 @@
-# Rust 백엔드
-youtube-ai-platform/backend/target/
-youtube-ai-platform/backend/Cargo.lock
+venv/
+.git/
+.env
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.venv/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+*.egg-info/
+*.dist-info/
+
+# Virtualenv symlinks
+lib64
+
+# Rust
+target/
+Cargo.lock
+*.rs.bk
 
 # Python
-youtube-ai-platform/python/__pycache__/
-youtube-ai-platform/python/*.pyc
-youtube-ai-platform/python/*.pyo
-youtube-ai-platform/python/*.pyd
-youtube-ai-platform/python/.Python
-youtube-ai-platform/python/.venv/
-youtube-ai-platform/python/env/
-youtube-ai-platform/python/venv/
-youtube-ai-platform/python/ENV/
-youtube-ai-platform/python/env.bak/
-youtube-ai-platform/python/venv.bak/
-
-# 업로드된 비디오 파일들
-youtube-ai-platform/backend/uploads/
-youtube-ai-platform/uploads/
-uploads/
-
-# 로그 파일들
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
+.git
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
 
-# 환경 변수 파일
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE 설정
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS 생성 파일
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -46,6 +61,8 @@ uploads/
 ehthumbs.db
 Thumbs.db
 
-# 임시 파일들
-*.tmp
-*.temp
+# 업로드된 비디오 파일들
+youtube-ai-platform/backend/uploads/
+youtube-ai-platform/uploads/
+uploads/
+
