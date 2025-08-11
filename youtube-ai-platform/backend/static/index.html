@@ -327,6 +327,53 @@
         .log-entry i {
             color: var(--primary-color);
         }
+
+        /* 채팅 스타일 */
+        .chat-container {
+            max-height: 600px;
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .chat-message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .chat-message.user {
+            background: var(--primary-color);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .chat-message.assistant {
+            background: white;
+            color: var(--text-dark);
+            border: 1px solid var(--border-color);
+        }
+
+        .chat-message.loading {
+            background: #e9ecef;
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        .chat-timestamp {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -376,6 +423,11 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="video-search-tab" data-bs-toggle="tab" data-bs-target="#video-search" type="button" role="tab">
                         <i class="fas fa-video me-2"></i>비디오 검색
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ai-chat-tab" data-bs-toggle="tab" data-bs-target="#ai-chat" type="button" role="tab">
+                        <i class="fas fa-robot me-2"></i>AI 채팅
                     </button>
                 </li>
             </ul>
@@ -479,6 +531,32 @@
                                 </button>
                             </div>
                             <div id="single-video-result"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI 채팅 탭 -->
+                <div class="tab-pane fade" id="ai-chat" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-robot me-2"></i>AI 채팅 (MCP 서버 연동)
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>AI 채팅</strong>을 통해 YouTube 데이터 분석, 비디오 검색, 채널 분석 등을 자연어로 요청하세요.
+                            </div>
+                            
+                            <div class="chat-container">
+                                <div id="chat-messages" class="chat-messages mb-3"></div>
+                                
+                                <div class="input-group">
+                                    <input type="text" id="chat-input" class="form-control" placeholder="예: 강아지가 뛰는 영상 찾아줘, 인기 채널 분석해줘...">
+                                    <button class="btn btn-primary" onclick="sendChatMessage()">
+                                        <i class="fas fa-paper-plane me-2"></i>전송
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

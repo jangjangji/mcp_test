@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # YouTube 데이터 처리 MCP 서버 (포트 8001)
   youtube-mcp-server:
@@ -20,7 +18,7 @@ services:
     networks:
       - youtube-ai-network
     restart: unless-stopped
-    command: ["python", "youtube_http_server.py"]
+    command: ["python", "youtube_mcp_server.py"]
 
   # 비디오 처리 MCP 서버 (포트 8002)
   video-mcp-server:
@@ -42,7 +40,7 @@ services:
     networks:
       - youtube-ai-network
     restart: unless-stopped
-    command: ["python", "video_http_server.py"]
+    command: ["python", "video_mcp_server.py"]
 
   # Rust 백엔드 API 서버 (포트 3000)
   backend:

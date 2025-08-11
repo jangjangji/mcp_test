@@ -32,31 +32,31 @@ async function searchSimilar() {
 
 // YouTube 검색
 async function searchYouTube() {
-    const query = document.getElementById('youtubeSearchQuery').value.trim();
+    const query = document.getElementById('search-input').value;
     if (!query) {
-        alert('검색어를 입력해주세요.');
+        showAlert('search-result', '검색어를 입력해주세요.', 'warning');
         return;
     }
 
-    showLoading('youtubeSearchLoading');
-    hideResult('youtubeSearchResult');
-
+    showLoading('search-result');
     try {
-        const response = await fetch(`${API_BASE_URL}/api/youtube/search`, {
+        const response = await fetch('http://localhost:3000/api/youtube/search', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ query })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
         });
 
-        const videos = await response.json();
-        displayYouTubeSearchResult(videos);
+        const result = await response.json();
+        console.log('검색 결과:', result);
+
+        if (result.success && result.data) {
+            displaySearchResults(result.data);
+        } else {
+            showAlert('search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
+        }
     } catch (error) {
-        console.error('Error:', error);
-        displayError('youtubeSearchResult', 'YouTube 검색 중 오류가 발생했습니다.');
-    } finally {
-        hideLoading('youtubeSearchLoading');
+        console.error('API 오류:', error);
+        showAlert('search-result', `API 호출 중 오류: ${error.message}`, 'danger');
     }
 }
 
@@ -397,23 +397,31 @@ function displayYouTubeSearchResult(videos) {
     const videoCards = videos.map(video => `
         <div class="col-md-6 col-lg-4 mb-4">
             <div class="card video-card h-100">
-                <img src="${video.thumbnail_url}" class="card-img-top thumbnail" alt="${video.title}">
+                <img src="${video.thumbnail}" class="card-img-top thumbnail" alt="${video.title}">
                 <div class="card-body">
                     <h6 class="card-title">${video.title}</h6>
-                    <p class="card-text text-muted">${video.channel_name}</p>
+                    <p class="card-text text-muted">${video.channel}</p>
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted">
-                            <i class="fas fa-eye"></i> ${formatNumber(video.view_count)}
+                            <i class="fas fa-eye"></i> ${video.views}
                         </small>
                         <small class="text-muted">
-                            <i class="fas fa-thumbs-up"></i> ${formatNumber(video.like_count)}
+                            <i class="fas fa-thumbs-up"></i> ${video.likes}
                         </small>
                     </div>
                 </div>
                 <div class="card-footer">
-                    <a href="${video.url}" target="_blank" class="btn btn-sm btn-outline-primary">
-                        <i class="fab fa-youtube"></i> 보기
-                    </a>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> ${video.duration}
+                        </small>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar"></i> ${video.published}
+                        </small>
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge bg-primary">${video.video_id}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1434,3 +1442,316 @@ function displaySimilarityResult(data) {
     `;
     container.innerHTML = html;
 } 
+
+// AI 채팅 기능
+let chatHistory = [];
+
+// 채팅 메시지 전송
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) {
+        alert('메시지를 입력해주세요.');
+        return;
+    }
+
+    // 사용자 메시지 추가
+    addChatMessage('user', message);
+    input.value = '';
+
+    // 로딩 메시지 표시
+    const loadingId = addChatMessage('assistant', '🤔 생각 중...', 'loading');
+
+    try {
+        // MCP 서버들과 연동하여 응답 생성
+        const response = await processChatMessage(message);
+        
+        // 로딩 메시지 제거하고 응답 표시
+        removeChatMessage(loadingId);
+        addChatMessage('assistant', response);
+        
+    } catch (error) {
+        console.error('Chat error:', error);
+        removeChatMessage(loadingId);
+        addChatMessage('assistant', '❌ 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 채팅 메시지 처리 (MCP 서버 연동)
+async function processChatMessage(message) {
+    const lowerMessage = message.toLowerCase();
+    
+    // YouTube 검색 관련
+    if (lowerMessage.includes('검색') || lowerMessage.includes('찾아') || lowerMessage.includes('영상')) {
+        const query = extractQuery(message);
+        if (query) {
+            const result = await callYouTubeSearch(query);
+            return formatYouTubeSearchResponse(result, query);
+        }
+    }
+    
+    // 비디오 검색 관련
+    if (lowerMessage.includes('비디오') || lowerMessage.includes('동영상') || lowerMessage.includes('프레임')) {
+        const query = extractQuery(message);
+        if (query) {
+            const result = await callVideoSearch(query);
+            return formatVideoSearchResponse(result, query);
+        }
+    }
+    
+    // 채널 분석 관련
+    if (lowerMessage.includes('채널') || lowerMessage.includes('분석') || lowerMessage.includes('정보')) {
+        const query = extractQuery(message);
+        if (query) {
+            const result = await callChannelAnalysis(query);
+            return formatChannelAnalysisResponse(result, query);
+        }
+    }
+    
+    // 트렌딩 분석
+    if (lowerMessage.includes('트렌딩') || lowerMessage.includes('인기') || lowerMessage.includes('트렌드')) {
+        const result = await callTrendingAnalysis();
+        return formatTrendingResponse(result);
+    }
+    
+    // 기본 응답
+    return `안녕하세요! YouTube AI 어시스턴트입니다. 다음과 같은 요청을 도와드릴 수 있습니다:
+
+🔍 **YouTube 검색**: "강아지 영상 찾아줘", "요리 영상 검색해줘"
+🎥 **비디오 분석**: "강아지가 뛰는 장면 찾아줘", "비디오에서 사람이 걷는 장면 검색"
+📺 **채널 분석**: "인기 채널 분석해줘", "채널 정보 알려줘"
+📈 **트렌딩**: "트렌딩 영상 알려줘", "인기 콘텐츠 분석해줘"
+
+어떤 도움이 필요하신가요?`;
+}
+
+// 쿼리 추출
+function extractQuery(message) {
+    // 따옴표로 감싸진 부분 추출
+    const quotedMatch = message.match(/[""]([^""]+)[""]/);
+    if (quotedMatch) {
+        return quotedMatch[1];
+    }
+    
+    // "~해줘" 앞의 내용 추출
+    const actionMatch = message.match(/(.+?)(?:해줘|찾아줘|검색해줘|알려줘)/);
+    if (actionMatch) {
+        return actionMatch[1].trim();
+    }
+    
+    // 마지막 명사 추출 시도
+    const words = message.split(/\s+/);
+    return words[words.length - 1];
+}
+
+// YouTube 검색 API 호출
+async function callYouTubeSearch(query) {
+    try {
+        const response = await fetch('http://localhost:3000/api/youtube/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query, max_results: 5 })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('YouTube search error:', error);
+        throw new Error('YouTube 검색 중 오류가 발생했습니다.');
+    }
+}
+
+// 비디오 검색 API 호출
+async function callVideoSearch(query) {
+    try {
+        const response = await fetch('http://localhost:3000/api/search-video', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query, top_k: 5 })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Video search error:', error);
+        throw new Error('비디오 검색 중 오류가 발생했습니다.');
+    }
+}
+
+// 채널 분석 API 호출
+async function callChannelAnalysis(query) {
+    try {
+        const response = await fetch('http://localhost:3000/api/channel-info', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ video_url: query })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Channel analysis error:', error);
+        throw new Error('채널 분석 중 오류가 발생했습니다.');
+    }
+}
+
+// 트렌딩 분석 API 호출
+async function callTrendingAnalysis() {
+    try {
+        const response = await fetch('http://localhost:3000/api/trending-analysis', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ region: 'KR', category: 'all' })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Trending analysis error:', error);
+        throw new Error('트렌딩 분석 중 오류가 발생했습니다.');
+    }
+}
+
+// YouTube 검색 응답 포맷
+function formatYouTubeSearchResponse(result, query) {
+    if (!result.success || !result.data.results) {
+        return `❌ "${query}" 검색 결과를 가져오는데 실패했습니다.`;
+    }
+    
+    const videos = result.data.results;
+    let response = `🔍 **"${query}" 검색 결과** (${videos.length}개)\n\n`;
+    
+    videos.forEach((video, index) => {
+        response += `${index + 1}. **${video.title}**\n`;
+        response += `   📺 ${video.channel} | 👁️ ${video.views} | ⏱️ ${video.duration}\n`;
+        response += `   🔗 ${video.url}\n\n`;
+    });
+    
+    return response;
+}
+
+// 비디오 검색 응답 포맷
+function formatVideoSearchResponse(result, query) {
+    if (!result.success || !result.data.results) {
+        return `❌ "${query}" 비디오 검색 결과를 가져오는데 실패했습니다.`;
+    }
+    
+    const videos = result.data.results;
+    let response = `🎥 **"${query}" 비디오 검색 결과** (${videos.length}개)\n\n`;
+    
+    videos.forEach((video, index) => {
+        const timestamp = formatTimestamp(video.timestamp);
+        const similarity = (video.similarity * 100).toFixed(1);
+        response += `${index + 1}. **${video.video_id}**\n`;
+        response += `   ⏰ ${timestamp} | 🎯 유사도: ${similarity}%\n`;
+        response += `   📁 ${video.video_path}\n\n`;
+    });
+    
+    return response;
+}
+
+// 채널 분석 응답 포맷
+function formatChannelAnalysisResponse(result, query) {
+    if (!result.success || !result.data) {
+        return `❌ "${query}" 채널 정보를 가져오는데 실패했습니다.`;
+    }
+    
+    const channel = result.data;
+    let response = `📺 **"${query}" 채널 정보**\n\n`;
+    response += `🏷️ **이름**: ${channel.name}\n`;
+    response += `👥 **구독자**: ${channel.subscribers}\n`;
+    response += `🎬 **비디오 수**: ${channel.videos}\n`;
+    response += `📝 **설명**: ${channel.description}\n`;
+    response += `📅 **생성일**: ${channel.created_at}\n`;
+    
+    return response;
+}
+
+// 트렌딩 응답 포맷
+function formatTrendingResponse(result) {
+    if (!result.success || !result.data.videos) {
+        return `❌ 트렌딩 분석 결과를 가져오는데 실패했습니다.`;
+    }
+    
+    const videos = result.data.videos;
+    let response = `📈 **트렌딩 영상 분석** (${videos.length}개)\n\n`;
+    
+    videos.forEach((video, index) => {
+        response += `${index + 1}. **${video.title}**\n`;
+        response += `   📺 ${video.channel} | 👁️ ${video.views}\n`;
+        response += `   🏷️ 카테고리: ${video.category}\n\n`;
+    });
+    
+    return response;
+}
+
+// 채팅 메시지 추가
+function addChatMessage(type, content, className = '') {
+    const messagesContainer = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    const messageId = 'msg-' + Date.now();
+    
+    messageDiv.id = messageId;
+    messageDiv.className = `chat-message ${type} ${className}`;
+    
+    const timestamp = new Date().toLocaleTimeString();
+    
+    messageDiv.innerHTML = `
+        <div>${content}</div>
+        <div class="chat-timestamp">${timestamp}</div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // 채팅 히스토리에 저장
+    chatHistory.push({ id: messageId, type, content, timestamp });
+    
+    return messageId;
+}
+
+// 채팅 메시지 제거
+function removeChatMessage(messageId) {
+    const messageElement = document.getElementById(messageId);
+    if (messageElement) {
+        messageElement.remove();
+    }
+}
+
+// Enter 키로 메시지 전송
+document.addEventListener('DOMContentLoaded', function() {
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+    }
+    
+    // 초기 환영 메시지
+    setTimeout(() => {
+        addChatMessage('assistant', '안녕하세요! YouTube AI 어시스턴트입니다. 🎥\n\n무엇을 도와드릴까요?');
+    }, 500);
+}); 

@@ -22,5 +22,5 @@ COPY . .
 # 포트 노출
 EXPOSE 8001
 
-# 기본 명령어 설정 (HTTP 서버 실행)
-CMD ["python", "youtube_http_server.py"]
+# 기본 명령어 설정 (MCP 서버 실행)
+CMD ["python", "youtube_mcp_server.py"]

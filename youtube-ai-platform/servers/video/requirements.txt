@@ -1,5 +1,5 @@
 # Video MCP 서버 전용 의존성
-mcp==1.0.0
+mcp==1.9.4
 fastapi>=0.109.0
 uvicorn>=0.24.0
 pydantic>=2.7.2

@@ -6,10 +6,10 @@ use futures::{TryStreamExt};
 use serde::{Deserialize, Serialize};
 use dotenv::dotenv;
 use chrono::Utc;
-use std::process::Command;
 use std::fs;
 use std::path::Path;
 use std::io::Write;
+use reqwest;
 
 // JSON 요청/응답 구조체들
 #[derive(Serialize, Deserialize)]
@@ -90,24 +90,45 @@ struct ApiResponse<T> {
 struct MCPClient;
 
 impl MCPClient {
-    // Python MCP 서버와 통신하는 함수
-    async fn call_function(function_name: &str, args: serde_json::Value) -> Result<String, anyhow::Error> {
-        // 가상환경의 Python 사용 (.venv로 수정)
-        let output = Command::new("../python/.venv/bin/python")
-            .current_dir("../python")  // python 디렉토리에서 실행
-            .arg("mcp_client.py")
-            .arg(function_name)
-            .arg(serde_json::to_string(&args)?)
-            .output()?;
-
-        if output.status.success() {
-            let result = String::from_utf8(output.stdout)?;
-            Ok(result.trim().to_string())
+    // HTTP로 YouTube MCP 서버와 통신
+    async fn call_youtube_function(function_name: &str, args: serde_json::Value) -> Result<String, anyhow::Error> {
+        let client = reqwest::Client::new();
+        
+        // YouTube MCP 서버 URL (환경 변수에서 가져오기)
+        let url = std::env::var("YOUTUBE_MCP_URL")
+            .unwrap_or_else(|_| "http://localhost:8001".to_string());
+        
+        let response = client.post(&format!("{}/{}", url, function_name))
+            .json(&args)
+            .send()
+            .await?;
+            
+        if response.status().is_success() {
+            let result = response.text().await?;
+            Ok(result)
         } else {
-            let error = String::from_utf8(output.stderr)?;
-            let stdout = String::from_utf8(output.stdout)?;
-            println!("Python 실행 오류 - stderr: {}, stdout: {}", error, stdout);
-            Err(anyhow::anyhow!("Python 함수 실행 오류: {}", error))
+            Err(anyhow::anyhow!("YouTube MCP 서버 오류: {}", response.status()))
+        }
+    }
+    
+    // HTTP로 Video MCP 서버와 통신
+    async fn call_video_function(function_name: &str, args: serde_json::Value) -> Result<String, anyhow::Error> {
+        let client = reqwest::Client::new();
+        
+        // Video MCP 서버 URL (환경 변수에서 가져오기)
+        let url = std::env::var("VIDEO_MCP_URL")
+            .unwrap_or_else(|_| "http://localhost:8002".to_string());
+        
+        let response = client.post(&format!("{}/{}", url, function_name))
+            .json(&args)
+            .send()
+            .await?;
+            
+        if response.status().is_success() {
+            let result = response.text().await?;
+            Ok(result)
+        } else {
+            Err(anyhow::anyhow!("Video MCP 서버 오류: {}", response.status()))
         }
     }
 }
@@ -118,13 +139,30 @@ async fn search_similar_video(req: web::Json<SearchRequest>) -> Result<HttpRespo
         "query": req.query
     });
     
-    match MCPClient::call_function("search_similar_youtube_video", args).await {
+    match MCPClient::call_youtube_function("youtube_search", args).await {
         Ok(result) => {
+            // MCP 툴 결과 파싱 (JSON 문자열을 파싱)
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
-                    // MCP 클라이언트에서 반환하는 데이터에서 "result" 필드를 추출
+                    // MCP 툴 결과에서 실제 데이터 추출
                     let result_data = if let Some(result_value) = data.get("result") {
-                        result_value.clone()
+                        if let Some(content) = result_value.get("content") {
+                            if let Some(first_content) = content.as_array().and_then(|arr| arr.first()) {
+                                if let Some(text) = first_content.get("text") {
+                                    // JSON 문자열을 파싱하여 실제 데이터 추출
+                                    match serde_json::from_str::<serde_json::Value>(text.as_str().unwrap_or("")) {
+                                        Ok(parsed_data) => parsed_data,
+                                        Err(_) => result_value.clone()
+                                    }
+                                } else {
+                                    result_value.clone()
+                                }
+                            } else {
+                                result_value.clone()
+                            }
+                        } else {
+                            result_value.clone()
+                        }
                     } else {
                         data
                     };
@@ -161,7 +199,7 @@ async fn search_youtube_videos(req: web::Json<VideoSearchRequest>) -> Result<Htt
         "query": req.query
     });
     
-    match MCPClient::call_function("search_youtube_videos", args).await {
+    match MCPClient::call_youtube_function("youtube_search", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -212,7 +250,7 @@ async fn get_channel_info(req: web::Json<ChannelRequest>) -> Result<HttpResponse
         "video_url": req.video_url
     });
     
-    match MCPClient::call_function("get_channel_info", args).await {
+    match MCPClient::call_youtube_function("get_channel_info", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -255,7 +293,7 @@ async fn save_channel_embeddings(req: web::Json<SaveChannelRequest>) -> Result<H
         "channel_id": req.channel_id
     });
     
-    match MCPClient::call_function("save_channel_youtube_embeddings", args).await {
+    match MCPClient::call_youtube_function("save_channel_youtube_embeddings", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -292,7 +330,7 @@ async fn save_channel_embeddings_force(req: web::Json<SaveChannelRequest>) -> Re
         "force_update": true
     });
     
-    match MCPClient::call_function("save_channel_youtube_embeddings", args).await {
+    match MCPClient::call_youtube_function("save_channel_youtube_embeddings", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -328,7 +366,7 @@ async fn get_youtube_transcript(req: web::Json<TranscriptRequest>) -> Result<Htt
         "url": req.url
     });
     
-    match MCPClient::call_function("get_youtube_transcript", args).await {
+    match MCPClient::call_youtube_function("get_youtube_transcript", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -371,7 +409,7 @@ async fn save_single_video_embedding(req: web::Json<SaveSingleVideoRequest>) -> 
         "video_url": req.video_url
     });
     
-    match MCPClient::call_function("save_single_video_embedding", args).await {
+    match MCPClient::call_video_function("save_single_video_embedding", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -415,7 +453,7 @@ async fn save_single_video_semantic_embedding(req: web::Json<SaveSingleVideoSema
         "chunk_method": req.chunk_method
     });
     
-    match MCPClient::call_function("save_single_video_semantic_embedding", args).await {
+    match MCPClient::call_video_function("save_single_video_semantic_embedding", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -456,7 +494,7 @@ async fn compare_chunking_methods(req: web::Json<CompareChunkingRequest>) -> Res
         "video_url": req.video_url
     });
     
-    match MCPClient::call_function("compare_chunking_methods", args).await {
+    match MCPClient::call_video_function("compare_chunking_methods", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -577,7 +615,7 @@ async fn upload_video(mut payload: Multipart) -> Result<HttpResponse> {
         "video_id": video_id
     });
     
-    match MCPClient::call_function("add_video_to_db", args).await {
+    match MCPClient::call_video_function("add_video_to_db", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -613,6 +651,92 @@ async fn upload_video(mut payload: Multipart) -> Result<HttpResponse> {
     }
 }
 
+// YouTube 검색 API 엔드포인트
+async fn search_youtube(req: web::Json<SearchRequest>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "query": req.query
+    });
+    
+    match MCPClient::call_youtube_function("youtube_search", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    // MCP 서버 응답에서 data 필드 추출
+                    let result_data = if let Some(data_field) = data.get("data") {
+                        data_field.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("YouTube 검색 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
+// 트렌딩 분석 API 엔드포인트
+async fn analyze_trending(req: web::Json<serde_json::Value>) -> Result<HttpResponse> {
+    let args = serde_json::json!({
+        "region": req.get("region").unwrap_or(&serde_json::Value::String("KR".to_string())),
+        "category": req.get("category").unwrap_or(&serde_json::Value::String("all".to_string()))
+    });
+    
+    match MCPClient::call_youtube_function("youtube_analyze_trending", args).await {
+        Ok(result) => {
+            match serde_json::from_str::<serde_json::Value>(&result) {
+                Ok(data) => {
+                    let result_data = if let Some(data_field) = data.get("data") {
+                        data_field.clone()
+                    } else {
+                        data
+                    };
+                    
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(result_data),
+                        error: None,
+                    }))
+                },
+                Err(_) => {
+                    Ok(HttpResponse::Ok().json(ApiResponse {
+                        success: true,
+                        data: Some(serde_json::json!({ "message": result })),
+                        error: None,
+                    }))
+                }
+            }
+        },
+        Err(e) => {
+            println!("트렌딩 분석 오류: {}", e);
+            Ok(HttpResponse::InternalServerError().json(ApiResponse::<()> {
+                success: false,
+                data: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
 // 비디오 검색 API 엔드포인트
 async fn search_video(req: web::Json<serde_json::Value>) -> Result<HttpResponse> {
     let args = serde_json::json!({
@@ -620,7 +744,7 @@ async fn search_video(req: web::Json<serde_json::Value>) -> Result<HttpResponse>
         "top_k": req["top_k"].as_u64().unwrap_or(5)
     });
     
-    match MCPClient::call_function("search_video_in_db", args).await {
+    match MCPClient::call_video_function("search_video_in_db", args).await {
         Ok(result) => {
             println!("Python MCP 클라이언트 반환값: {}", result); // 디버깅 로그
             
@@ -683,7 +807,7 @@ async fn delete_video(req: web::Json<serde_json::Value>) -> Result<HttpResponse>
         "video_id": req["video_id"]
     });
     
-    match MCPClient::call_function("clear_video_from_db", args).await {
+    match MCPClient::call_video_function("clear_video_from_db", args).await {
         Ok(result) => {
             match serde_json::from_str::<serde_json::Value>(&result) {
                 Ok(data) => {
@@ -754,6 +878,8 @@ async fn main() -> std::io::Result<()> {
             .service(Files::new("/static", "./static").show_files_listing())
             .route("/", web::get().to(root))
             .route("/health", web::get().to(health_check))
+            .route("/api/youtube/search", web::post().to(search_youtube))
+            .route("/api/analyze-trending", web::post().to(analyze_trending))
             .route("/api/search-similar", web::post().to(search_similar_video))
             .route("/api/search-youtube", web::post().to(search_youtube_videos))
             .route("/api/channel-info", web::post().to(get_channel_info))
@@ -763,6 +889,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/save-single-video", web::post().to(save_single_video_embedding))
             .route("/api/save-single-video-semantic", web::post().to(save_single_video_semantic_embedding))
             .route("/api/compare-chunking", web::post().to(compare_chunking_methods))
+            .route("/api/analyze-trending", web::post().to(analyze_trending))
             // 비디오 업로드 및 검색 API 엔드포인트들
             .route("/api/upload-video", web::post().to(upload_video))
             .route("/api/search-video", web::post().to(search_video))
