@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # YouTube 데이터 처리 MCP 서버 (포트 8001)
   youtube-mcp-server:
@@ -19,6 +21,8 @@ services:
       - youtube-ai-network
     restart: unless-stopped
     command: ["python", "youtube_mcp_server.py"]
+    stdin_open: true
+    tty: true
 
   # 비디오 처리 MCP 서버 (포트 8002)
   video-mcp-server:
@@ -41,6 +45,8 @@ services:
       - youtube-ai-network
     restart: unless-stopped
     command: ["python", "video_mcp_server.py"]
+    stdin_open: true
+    tty: true
 
   # Rust 백엔드 API 서버 (포트 3000)
   backend:
@@ -49,15 +55,18 @@ services:
       dockerfile: Dockerfile
     container_name: youtube-ai-backend
     ports:
-      - "3000:3000"
+      - "3000:8080"
     env_file:
       - ../.env
     environment:
-      - YOUTUBE_MCP_URL=http://youtube-mcp-server:8001
-      - VIDEO_MCP_URL=http://video-mcp-server:8002
+      - YOUTUBE_MCP_URL=youtube-mcp-server:8001
+      - VIDEO_MCP_URL=video-mcp-server:8002
     volumes:
+      - ./servers/youtube:/app/youtube
+      - ./servers/video:/app/video
       - ./uploads:/app/uploads
       - ./static:/app/static
+    working_dir: /app
     networks:
       - youtube-ai-network
     restart: unless-stopped
@@ -71,3 +80,4 @@ networks:
 
 volumes:
   uploads:
+  shared_data:

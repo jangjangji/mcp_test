@@ -1135,7 +1135,7 @@ async function searchYouTube() {
 
     showLoading('search-result');
     try {
-        const response = await fetch('/api/search-youtube', {
+        const response = await fetch('/api/youtube/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: query })
