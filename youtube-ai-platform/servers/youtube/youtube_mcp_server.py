@@ -6,20 +6,13 @@ HTTP 래퍼 없이 MCP 툴을 직접 실행
 
 import asyncio
 import logging
-import os
 from typing import Any, Dict, List, Optional
-
-from mcp.server import Server
+from mcp.server import Server, InitializationOptions, NotificationOptions
 from mcp.server.stdio import stdio_server
-from mcp.server.models import InitializationOptions
-from mcp.server.lowlevel import NotificationOptions
 from mcp.types import (
-    CallToolResult,
-    ListToolsResult,
-    TextContent,
-    Tool,
-    JSONRPCError
+    Tool, TextContent, ListToolsResult, CallToolResult
 )
+from mcp import JSONRPCError
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -73,25 +66,6 @@ class YouTubeMCPServer:
                             },
                             "required": ["video_id"]
                         }
-                    ),
-                    Tool(
-                        name="download_video",
-                        description="YouTube 동영상을 다운로드합니다",
-                        inputSchema={
-                            "type": "object",
-                            "properties": {
-                                "video_id": {
-                                    "type": "string",
-                                    "description": "YouTube 동영상 ID"
-                                },
-                                "quality": {
-                                    "type": "string",
-                                    "description": "동영상 품질 (기본값: 'best')",
-                                    "default": "best"
-                                }
-                            },
-                            "required": ["video_id"]
-                        }
                     )
                 ]
             )
@@ -104,8 +78,6 @@ class YouTubeMCPServer:
                     return await self._youtube_search(arguments)
                 elif name == "get_video_info":
                     return await self._get_video_info(arguments)
-                elif name == "download_video":
-                    return await self._download_video(arguments)
                 else:
                     raise JSONRPCError(
                         code=-32600,  # Invalid Request
@@ -179,30 +151,6 @@ class YouTubeMCPServer:
                 TextContent(
                     type="text",
                     text=f"동영상 정보:\n제목: {video_info['title']}\n채널: {video_info['channel']}\n길이: {video_info['duration']}"
-                )
-            ]
-        )
-    
-    async def _download_video(self, arguments: Dict[str, Any]) -> CallToolResult:
-        """동영상 다운로드 시뮬레이션"""
-        video_id = arguments.get("video_id", "")
-        quality = arguments.get("quality", "best")
-        
-        logger.info(f"⬇️ 동영상 다운로드: {video_id} (품질: {quality})")
-        
-        # 시뮬레이션된 다운로드
-        download_info = {
-            "status": "완료",
-            "file_path": f"/downloads/{video_id}.mp4",
-            "file_size": "50MB",
-            "quality": quality
-        }
-        
-        return CallToolResult(
-            content=[
-                TextContent(
-                    type="text",
-                    text=f"다운로드 완료!\n파일: {download_info['file_path']}\n크기: {download_info['file_size']}\n품질: {download_info['quality']}"
                 )
             ]
         )

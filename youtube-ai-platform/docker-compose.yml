@@ -9,8 +9,6 @@ services:
     container_name: youtube-mcp-server
     ports:
       - "8001:8001"
-    env_file:
-      - ../.env
     environment:
       - YOUTUBE_MCP_PORT=8001
       - YOUTUBE_MCP_HOST=0.0.0.0
@@ -32,8 +30,6 @@ services:
     container_name: video-mcp-server
     ports:
       - "8002:8002"
-    env_file:
-      - ../.env
     environment:
       - VIDEO_MCP_PORT=8002
       - VIDEO_MCP_HOST=0.0.0.0
@@ -48,16 +44,14 @@ services:
     stdin_open: true
     tty: true
 
-  # Rust 백엔드 API 서버 (포트 3000)
+  # Rust 백엔드 API 서버 (포트 3000) - MCP 서버들을 자식 프로세스로 실행
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: youtube-ai-backend
     ports:
       - "3000:8080"
-    env_file:
-      - ../.env
     environment:
       - YOUTUBE_MCP_URL=youtube-mcp-server:8001
       - VIDEO_MCP_URL=video-mcp-server:8002
