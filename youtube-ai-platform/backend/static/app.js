@@ -534,10 +534,12 @@ function displayTranscriptResult(data) {
                 <strong>자막 추출 성공!</strong>
             </div>
             <div class="video-item">
-                <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
+                <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" 
                      class="video-thumbnail" 
                      alt="썸네일" 
                      onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg';"
+                     onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/mqdefault.jpg';"
+                     onerror="this.onerror=null; this.src='https://via.placeholder.com/320x180/cccccc/666666?text=썸네일+없음';"
                      onload="console.log('자막 추출 영상 썸네일 로딩 성공:', this.src)">
                 <div class="video-info">
                     <div class="video-title">${data.title || '제목 없음'}</div>
@@ -619,6 +621,27 @@ function displaySaveChannelResult(result) {
             </div>
         </div>
     `;
+}
+
+// 썸네일 오류 처리 함수
+function handleThumbnailError(img, videoId) {
+    const fallbackUrls = [
+        `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+        `https://via.placeholder.com/320x180/cccccc/666666?text=썸네일+없음`
+    ];
+    
+    let currentIndex = 0;
+    
+    function tryNextFallback() {
+        if (currentIndex < fallbackUrls.length) {
+            img.src = fallbackUrls[currentIndex];
+            currentIndex++;
+        }
+    }
+    
+    img.onerror = tryNextFallback;
+    tryNextFallback();
 }
 
 // 유틸리티 함수들
@@ -978,8 +1001,12 @@ async function searchVideo() {
             let searchResults;
             console.log('result.data:', result.data); // 디버깅 로그 추가
             
-            if (result.data.message) {
-                // message 필드 안의 JSON 문자열을 파싱
+            if (result.data.results && Array.isArray(result.data.results)) {
+                // 백엔드에서 구조화된 results 배열 반환
+                searchResults = result.data.results;
+                console.log('구조화된 results 배열:', searchResults); // 디버깅 로그 추가
+            } else if (result.data.message) {
+                // message 필드 안의 JSON 문자열을 파싱 (기존 호환성)
                 console.log('message 필드 발견:', result.data.message); // 디버깅 로그 추가
                 try {
                     searchResults = JSON.parse(result.data.message);
@@ -999,8 +1026,69 @@ async function searchVideo() {
                 console.log('기타 경우:', searchResults); // 디버깅 로그 추가
             }
             
-            console.log('최종 검색 결과:', searchResults); // 디버깅 로그 추가
-            displayVideoSearchResult(searchResults, query);
+            console.log('최종 searchResults:', searchResults); // 최종 결과 확인
+            console.log('searchResults 타입:', typeof searchResults); // 타입 확인
+            console.log('Array.isArray(searchResults):', Array.isArray(searchResults)); // 배열 여부 확인
+            
+            // 강제로 result.data.results 직접 사용
+            if (result.data.results && Array.isArray(result.data.results) && result.data.results.length > 0) {
+                console.log('🔍 result.data.results 직접 사용:', result.data.results);
+                
+                // 직접 HTML 생성하여 표시
+                const container = document.getElementById('video-search-result');
+                if (container) {
+                    let html = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-search me-2"></i>검색 결과: "${query}"</h5>
+                                <small>총 ${result.data.results.length}개 결과</small>
+                            </div>
+                            <div class="card-body">
+                    `;
+                    
+                    result.data.results.forEach((resultItem, index) => {
+                        console.log(`📋 결과 ${index}:`, resultItem);
+                        const title = resultItem.title || resultItem.video_name || '제목 없음';
+                        const timestamp = resultItem.timestamp || 'N/A';
+                        const similarity = resultItem.similarity ? (resultItem.similarity * 100).toFixed(1) : '0.0';
+                        
+                        html += `
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6 class="card-title">
+                                                <i class="fas fa-video me-2"></i>${title}
+                                            </h6>
+                                            <p class="card-text">
+                                                <strong>시간:</strong> ${timestamp}<br>
+                                                <strong>파일:</strong> ${title}<br>
+                                                <strong>설명:</strong> ${resultItem.description || '설명 없음'}
+                                            </p>
+                                        </div>
+                                        <div class="col-md-4 text-end">
+                                            <div class="badge bg-success fs-6">
+                                                유사도: ${similarity}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                    
+                    container.innerHTML = html;
+                    console.log('✅ 직접 HTML 생성 완료');
+                }
+            } else {
+                console.log('❌ 검색 결과 없음');
+                showAlert('video-search-result', '검색 결과가 없습니다.', 'info');
+            }
         } else {
             showAlert('video-search-result', `검색 실패: ${result.error || '알 수 없는 오류'}`, 'danger');
         }
@@ -1008,85 +1096,6 @@ async function searchVideo() {
         console.error('검색 오류:', error);
         showAlert('video-search-result', `검색 중 오류가 발생했습니다: ${error.message}`, 'danger');
     }
-}
-
-// 비디오 검색 결과 표시
-function displayVideoSearchResult(results, query) {
-    const container = document.getElementById('video-search-result');
-    
-    // results가 배열이 아닌 경우 처리
-    if (!results || !Array.isArray(results)) {
-        if (results && typeof results === 'object' && results.error) {
-            container.innerHTML = `
-                <div class="alert alert-danger" role="alert">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>검색 오류!</strong> ${results.error}
-                </div>
-            `;
-        } else {
-            container.innerHTML = `
-                <div class="alert alert-info" role="alert">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>검색 결과 없음</strong> "${query}"에 대한 검색 결과가 없습니다.
-                </div>
-            `;
-        }
-        return;
-    }
-    
-    if (results.length === 0) {
-        container.innerHTML = `
-            <div class="alert alert-info" role="alert">
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>검색 결과 없음</strong> "${query}"에 대한 검색 결과가 없습니다.
-            </div>
-        `;
-        return;
-    }
-    
-    let html = `
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-search me-2"></i>검색 결과: "${query}"</h5>
-                <small>총 ${results.length}개 결과</small>
-            </div>
-            <div class="card-body">
-    `;
-    
-    results.forEach((result, index) => {
-        const timestamp = formatTimestamp(result.timestamp);
-        const similarity = (result.similarity * 100).toFixed(1);
-        
-        html += `
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <h6 class="card-title">
-                                <i class="fas fa-video me-2"></i>${result.video_id}
-                            </h6>
-                            <p class="card-text">
-                                <strong>시간:</strong> ${timestamp}<br>
-                                <strong>파일:</strong> ${result.video_path}
-                            </p>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <div class="badge bg-success fs-6">
-                                유사도: ${similarity}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += `
-            </div>
-        </div>
-    `;
-    
-    container.innerHTML = html;
 }
 
 // 시간 포맷팅 함수 (초 -> HH:MM:SS)
@@ -1276,42 +1285,62 @@ async function saveSingleVideo() {
 }
 
 // 결과 표시 함수들
-function displaySearchResults(videos) {
+function displaySearchResults(data) {
     const container = document.getElementById('search-result');
     
-    if (!Array.isArray(videos) || videos.length === 0) {
+    // 새로운 HTTP 기반 MCP 응답 구조 처리
+    if (!data || !data.results || !Array.isArray(data.results) || data.results.length === 0) {
         container.innerHTML = '<div class="alert alert-info">검색 결과가 없습니다.</div>';
         return;
     }
 
-    let html = '<div class="card"><div class="card-header"><h5><i class="fas fa-youtube me-2"></i>검색 결과 (' + videos.length + '개)</h5></div><div class="card-body">';
+    const videos = data.results;
+    const query = data.query || '검색어';
+    const totalCount = data.total_count || videos.length;
+
+    let html = `<div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-youtube me-2"></i>"${query}" 검색 결과 (${totalCount}개)</h5>
+        </div>
+        <div class="card-body">`;
     
     videos.forEach((video, index) => {
-        let videoId = '';
-        if (video.url) {
-            const urlMatch = video.url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-            videoId = urlMatch ? urlMatch[1] : '';
-        }
+        // video_id가 있으면 YouTube 썸네일 URL 생성
+        const thumbnailUrl = video.video_id ? 
+            `https://img.youtube.com/vi/${video.video_id}/maxresdefault.jpg` : 
+            (video.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPC9zdmc+');
         
-        const thumbnailUrl = video.thumbnailUrl || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '');
+        // YouTube URL 생성
+        const youtubeUrl = video.video_id ? 
+            `https://www.youtube.com/watch?v=${video.video_id}` : 
+            (video.url || '#');
         
         html += `
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3">
-                            <img src="${thumbnailUrl}" class="img-fluid rounded" alt="썸네일">
+                            <img src="${thumbnailUrl}" 
+                                 class="img-fluid rounded" 
+                                 alt="썸네일"
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPC9zdmc+'">
                         </div>
                         <div class="col-md-9">
                             <h6 class="card-title">${video.title || '제목 없음'}</h6>
                             <p class="card-text">
-                                <strong>채널:</strong> ${video.channelName || '채널명 없음'}<br>
-                                <strong>조회수:</strong> ${video.viewCount ? video.viewCount.toLocaleString() : 'N/A'}<br>
-                                <strong>좋아요:</strong> ${video.likeCount ? video.likeCount.toLocaleString() : 'N/A'}
+                                <strong>채널:</strong> ${video.channel || '채널명 없음'}<br>
+                                <strong>길이:</strong> ${video.duration || 'N/A'}<br>
+                                <strong>조회수:</strong> ${video.views || 'N/A'}<br>
+                                <strong>좋아요:</strong> ${video.likes || 'N/A'}
                             </p>
-                            <a href="${video.url || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                <i class="fab fa-youtube me-1"></i>YouTube에서 보기
-                            </a>
+                            <div class="btn-group" role="group">
+                                <a href="${youtubeUrl}" target="_blank" class="btn btn-sm btn-outline-danger">
+                                    <i class="fab fa-youtube me-1"></i>YouTube에서 보기
+                                </a>
+                                <button class="btn btn-sm btn-outline-primary" onclick="analyzeChannelFromVideo('${youtubeUrl}')">
+                                    <i class="fas fa-tv me-1"></i>채널 분석
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1331,6 +1360,16 @@ function displayChannelResult(data) {
         return;
     }
 
+    // 새로운 HTTP 기반 MCP 응답 구조에 맞게 데이터 매핑
+    const channelName = data.channel_name || '채널명 없음';
+    const subscriberCount = data.subscriber_count || 'N/A';
+    const totalVideos = data.total_videos || 'N/A';
+    const totalViews = data.total_views || 'N/A';
+    const category = data.category || 'N/A';
+    const country = data.country || 'N/A';
+    const description = data.channel_description || '설명 없음';
+    const videoId = data.video_id || 'N/A';
+
     const html = `
         <div class="card">
             <div class="card-header">
@@ -1339,17 +1378,34 @@ function displayChannelResult(data) {
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <img src="${data.channelThumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPC9zdmc+'}" 
-                             class="img-fluid rounded" alt="채널 썸네일">
+                        <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
+                             class="img-fluid rounded" alt="채널 썸네일" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik03NSA3NUM3NSA3NSA3NSA3NSA3NSA3NVoiIGZpbGw9IiM5OTk5OTkiLz4KPC9zdmc+'">
                     </div>
                     <div class="col-md-9">
-                        <h5>${data.channelTitle || '채널명 없음'}</h5>
-                        <p><strong>구독자:</strong> ${data.subscriberCount ? data.subscriberCount.toLocaleString() : 'N/A'}</p>
-                        <p><strong>영상 수:</strong> ${data.videoCount || 'N/A'}</p>
-                        <p><strong>총 조회수:</strong> ${data.viewCount ? data.viewCount.toLocaleString() : 'N/A'}</p>
-                        <a href="${data.channelUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary">
-                            <i class="fab fa-youtube me-1"></i>채널 방문
-                        </a>
+                        <h5>${channelName}</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>구독자:</strong> ${subscriberCount}</p>
+                                <p><strong>영상 수:</strong> ${totalVideos}</p>
+                                <p><strong>총 조회수:</strong> ${totalViews}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>카테고리:</strong> ${category}</p>
+                                <p><strong>국가:</strong> ${country}</p>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <p><strong>설명:</strong> ${description}</p>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-primary" onclick="showChannelDetails()">
+                                <i class="fas fa-info-circle me-1"></i>상세 정보
+                            </button>
+                            <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" class="btn btn-sm btn-outline-danger ms-2">
+                                <i class="fab fa-youtube me-1"></i>YouTube에서 보기
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1383,8 +1439,11 @@ function displayTranscriptResult(data) {
                 </div>
                 <div class="row">
                     <div class="col-md-3">
-                        <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" 
-                             class="img-fluid rounded" alt="썸네일">
+                        <img src="https://img.youtube.com/vi/${videoId}/maxresdefault.jpg" 
+                             class="img-fluid rounded" alt="썸네일"
+                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/hqdefault.jpg';"
+                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${videoId}/mqdefault.jpg';"
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/320x180/cccccc/666666?text=썸네일+없음';">
                     </div>
                     <div class="col-md-9">
                         <h6>${data.title || '제목 없음'}</h6>
@@ -1419,8 +1478,11 @@ function displaySimilarityResult(data) {
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <img src="https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg" 
-                             class="img-fluid rounded" alt="썸네일">
+                        <img src="https://img.youtube.com/vi/${data.video_id}/maxresdefault.jpg" 
+                             class="img-fluid rounded" alt="썸네일"
+                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg';"
+                             onerror="this.onerror=null; this.src='https://img.youtube.com/vi/${data.video_id}/mqdefault.jpg';"
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/320x180/cccccc/666666?text=썸네일+없음';">
                     </div>
                     <div class="col-md-9">
                         <h6>유사도 점수: ${data.score ? (data.score * 100).toFixed(2) + '%' : 'N/A'}</h6>
@@ -1482,13 +1544,52 @@ async function sendChatMessage() {
 async function processChatMessage(message) {
     const lowerMessage = message.toLowerCase();
     
-    // YouTube 검색 관련
-    if (lowerMessage.includes('검색') || lowerMessage.includes('찾아') || lowerMessage.includes('영상')) {
+    // 의도 파악을 통한 MCP 선택
+    const intent = analyzeIntent(lowerMessage);
+    console.log('🔍 의도 분석 결과:', intent);
+    
+    if (intent === 'video_search') {
+        // Video MCP 호출 - 내 비디오에서 장면 찾기
         const query = extractQuery(message);
         if (query) {
+            console.log('🎥 Video MCP 도구 호출 (의도 기반):', query);
+            try {
+                const result = await callVideoSearch(query);
+                return formatVideoSearchResponse(result, query);
+            } catch (error) {
+                console.error('Video MCP 오류:', error);
+                return `❌ Video MCP 검색 중 오류가 발생했습니다: ${error.message}`;
+            }
+        }
+    } else if (intent === 'youtube_search') {
+        // YouTube MCP 호출 - 일반 YouTube 검색
+        const query = extractQuery(message);
+        if (query) {
+            console.log('📺 YouTube MCP 도구 호출 (의도 기반):', query);
             const result = await callYouTubeSearch(query);
             return formatYouTubeSearchResponse(result, query);
         }
+    }
+    
+    // 의도 분석 함수
+    function analyzeIntent(message) {
+        // Video MCP 의도: 내 비디오에서 장면 찾기
+        if (message.includes('내') || message.includes('저의') || message.includes('개인') ||
+            message.includes('장면') || message.includes('찾') || message.includes('검색') ||
+            message.includes('강아지') || message.includes('헤엄치') || message.includes('수영') ||
+            message.includes('동물') || message.includes('반려동물')) {
+            return 'video_search';
+        }
+        
+        // YouTube MCP 의도: 일반 YouTube 검색
+        if (message.includes('유튜브') || message.includes('youtube') || message.includes('인기') ||
+            message.includes('트렌딩') || message.includes('채널') || message.includes('구독자') ||
+            message.includes('추천') || message.includes('인기 영상')) {
+            return 'youtube_search';
+        }
+        
+        // 기본값: Video MCP (더 구체적인 검색)
+        return 'video_search';
     }
     
     // 비디오 검색 관련
@@ -1513,6 +1614,51 @@ async function processChatMessage(message) {
     if (lowerMessage.includes('트렌딩') || lowerMessage.includes('인기') || lowerMessage.includes('트렌드')) {
         const result = await callTrendingAnalysis();
         return formatTrendingResponse(result);
+    }
+    
+    // 동영상 검색 관련 (Video MCP 사용) - 내 비디오에서 장면 찾기
+    if (lowerMessage.includes('강아지') || lowerMessage.includes('헤엄치') || lowerMessage.includes('수영') || 
+        lowerMessage.includes('장면') || lowerMessage.includes('찾아') || lowerMessage.includes('검색')) {
+        const query = extractQuery(message);
+        if (query) {
+            console.log('🎥 Video MCP 도구 강제 호출:', query);
+            try {
+                // Video MCP 직접 호출
+                const response = await fetch('http://localhost:3000/api/search-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, top_k: 5 })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Video MCP 직접 호출 결과:', result);
+                
+                if (result.success && result.data && result.data.results) {
+                    return formatVideoSearchResponse(result, query);
+                } else {
+                    return `❌ Video MCP 검색 결과를 가져오는데 실패했습니다.`;
+                }
+            } catch (error) {
+                console.error('Video MCP 직접 호출 오류:', error);
+                return `❌ Video MCP 검색 중 오류가 발생했습니다: ${error.message}`;
+            }
+        }
+    }
+    
+    // YouTube 검색 관련 (YouTube MCP 사용) - 일반 YouTube 검색
+    if (lowerMessage.includes('유튜브') || lowerMessage.includes('youtube') || lowerMessage.includes('인기') || 
+        lowerMessage.includes('트렌딩') || lowerMessage.includes('인기 채널') || lowerMessage.includes('추천') ||
+        lowerMessage.includes('채널 분석') || lowerMessage.includes('구독자')) {
+        const query = extractQuery(message);
+        if (query) {
+            console.log('📺 YouTube MCP 도구 호출:', query);
+            const result = await callYouTubeSearch(query);
+            return formatYouTubeSearchResponse(result, query);
+        }
     }
     
     // 기본 응답
@@ -1651,9 +1797,11 @@ function formatYouTubeSearchResponse(result, query) {
     return response;
 }
 
-// 비디오 검색 응답 포맷
+// 비디오 검색 응답 포맷 (새로운 버전)
 function formatVideoSearchResponse(result, query) {
-    if (!result.success || !result.data.results) {
+    console.log('🔍 formatVideoSearchResponse 호출됨:', result);
+    
+    if (!result.success || !result.data || !result.data.results) {
         return `❌ "${query}" 비디오 검색 결과를 가져오는데 실패했습니다.`;
     }
     
@@ -1661,13 +1809,17 @@ function formatVideoSearchResponse(result, query) {
     let response = `🎥 **"${query}" 비디오 검색 결과** (${videos.length}개)\n\n`;
     
     videos.forEach((video, index) => {
-        const timestamp = formatTimestamp(video.timestamp);
-        const similarity = (video.similarity * 100).toFixed(1);
-        response += `${index + 1}. **${video.video_id}**\n`;
-        response += `   ⏰ ${timestamp} | 🎯 유사도: ${similarity}%\n`;
-        response += `   📁 ${video.video_path}\n\n`;
+        console.log(`📋 비디오 ${index}:`, video);
+        
+        const title = video.title || video.video_name || '제목 없음';
+        const timestamp = video.timestamp || 'N/A';
+        const similarity = video.similarity ? (video.similarity * 100).toFixed(1) : '0.0';
+        const description = video.description || '설명 없음';
+        
+        response += `${index + 1}. **${title}** ${timestamp} | 유사도: ${similarity}% ${description}\n`;
     });
     
+    console.log('✅ 최종 응답:', response);
     return response;
 }
 
@@ -1755,3 +1907,23 @@ document.addEventListener('DOMContentLoaded', function() {
         addChatMessage('assistant', '안녕하세요! YouTube AI 어시스턴트입니다. 🎥\n\n무엇을 도와드릴까요?');
     }, 500);
 }); 
+
+// 검색 결과에서 채널 분석
+function analyzeChannelFromVideo(videoUrl) {
+    // 채널 분석 탭으로 이동
+    const channelTab = document.querySelector('[data-bs-target="#channel-analysis"]');
+    if (channelTab) {
+        channelTab.click();
+    }
+    
+    // 채널 분석 입력 필드에 URL 설정
+    const channelUrlInput = document.getElementById('channel-url');
+    if (channelUrlInput) {
+        channelUrlInput.value = videoUrl;
+    }
+    
+    // 자동으로 채널 분석 실행
+    setTimeout(() => {
+        analyzeChannel();
+    }, 100);
+}

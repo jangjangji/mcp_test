@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Video MCP 서버 - MCP 프로토콜로 직접 통신
-HTTP 래퍼 없이 MCP 툴을 직접 실행
+Video MCP 서버 - MCP 프로토콜로 직접 통신 및 HTTP API 제공
 """
 
 import asyncio
@@ -21,9 +20,45 @@ from mcp.types import (
     JSONRPCError
 )
 
+# HTTP 서버를 위한 추가 import
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import uvicorn
+
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# FastAPI 앱 생성
+app = FastAPI(title="Video MCP HTTP Server", version="1.0.0")
+
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 요청/응답 모델
+class VideoSearchRequest(BaseModel):
+    query: str
+    top_k: Optional[int] = 5
+
+class VideoAddRequest(BaseModel):
+    video_path: str
+    video_name: str
+
+class ExtractFramesRequest(BaseModel):
+    video_path: str
+    fps: Optional[int] = 2
+
+class MCPResponse(BaseModel):
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
 
 class VideoMCPServer:
     """비디오 처리 MCP 서버"""
@@ -99,10 +134,12 @@ class VideoMCPServer:
                     )
                 ]
             )
-        
+
         @self.server.call_tool()
         async def call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResult:
-            """MCP 도구 호출 처리"""
+            """MCP 도구 호출"""
+            logger.info(f"🔧 도구 호출: {name}")
+            
             try:
                 if name == "video_search":
                     return await self._video_search(arguments)
@@ -112,34 +149,28 @@ class VideoMCPServer:
                     return await self._extract_frames(arguments)
                 else:
                     raise JSONRPCError(
-                        code=-32600,  # Invalid Request
+                        code=-32601,
                         message=f"알 수 없는 도구: {name}"
                     )
             except Exception as e:
                 logger.error(f"도구 실행 오류: {e}")
                 raise JSONRPCError(
-                    code=-32603,  # Internal Error
+                    code=-32603,
                     message=f"도구 실행 중 오류 발생: {str(e)}"
                 )
-    
+
     async def _video_search(self, arguments: Dict[str, Any]) -> CallToolResult:
         """비디오 검색 시뮬레이션"""
         query = arguments.get("query", "")
         top_k = arguments.get("top_k", 5)
         
-        logger.info(f"🔍 비디오 검색: '{query}' (상위 {top_k}개)")
+        logger.info(f"🔍 비디오 검색: '{query}' (최대 {top_k}개)")
         
         # 시뮬레이션된 검색 결과
         results = [
             {
                 "video_name": "dog_video",
-                "timestamp": "00:00:09",
-                "similarity": 1.000,
-                "description": "강아지가 물에서 놀고 있는 장면"
-            },
-            {
-                "video_name": "dog_video", 
-                "timestamp": "00:00:12",
+                "timestamp": "00:00:05",
                 "similarity": 0.996,
                 "description": "강아지가 물에서 공을 무는 장면"
             },
@@ -212,6 +243,103 @@ class VideoMCPServer:
             ]
         )
 
+# MCP 서버 인스턴스 생성
+mcp_server = VideoMCPServer()
+
+# HTTP API 엔드포인트들
+@app.get("/")
+async def root():
+    """루트 엔드포인트"""
+    return {"message": "Video MCP HTTP Server", "status": "running"}
+
+@app.get("/tools")
+async def list_tools():
+    """사용 가능한 MCP 도구 목록 반환"""
+    tools = [
+        {
+            "name": "video_search",
+            "description": "비디오 데이터베이스에서 유사한 장면을 검색합니다",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "검색할 텍스트 설명"},
+                    "top_k": {"type": "integer", "description": "반환할 최대 결과 수", "default": 5}
+                },
+                "required": ["query"]
+            }
+        },
+        {
+            "name": "add_video",
+            "description": "새로운 비디오를 데이터베이스에 추가합니다",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_path": {"type": "string", "description": "비디오 파일 경로"},
+                    "video_name": {"type": "string", "description": "비디오 이름"}
+                },
+                "required": ["video_path", "video_name"]
+            }
+        },
+        {
+            "name": "extract_frames",
+            "description": "비디오에서 프레임을 추출합니다",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "video_path": {"type": "string", "description": "비디오 파일 경로"},
+                    "fps": {"type": "integer", "description": "초당 프레임 수", "default": 2}
+                },
+                "required": ["video_path"]
+            }
+        }
+    ]
+    
+    return {"tools": tools, "total": len(tools)}
+
+@app.post("/tools/video_search")
+async def video_search_tool(request: VideoSearchRequest):
+    """비디오 검색 MCP 도구"""
+    try:
+        result = await mcp_server._video_search({
+            "query": request.query,
+            "top_k": request.top_k
+        })
+        return MCPResponse(success=True, data={"result": result.content[0].text})
+    except Exception as e:
+        logger.error(f"비디오 검색 오류: {e}")
+        return MCPResponse(success=False, error=str(e))
+
+@app.post("/tools/add_video")
+async def add_video_tool(request: VideoAddRequest):
+    """비디오 추가 MCP 도구"""
+    try:
+        result = await mcp_server._add_video({
+            "video_path": request.video_path,
+            "video_name": request.video_name
+        })
+        return MCPResponse(success=True, data={"result": result.content[0].text})
+    except Exception as e:
+        logger.error(f"비디오 추가 오류: {e}")
+        return MCPResponse(success=False, error=str(e))
+
+@app.post("/tools/extract_frames")
+async def extract_frames_tool(request: ExtractFramesRequest):
+    """프레임 추출 MCP 도구"""
+    try:
+        result = await mcp_server._extract_frames({
+            "video_path": request.video_path,
+            "fps": request.fps
+        })
+        return MCPResponse(success=True, data={"result": result.content[0].text})
+    except Exception as e:
+        logger.error(f"프레임 추출 오류: {e}")
+        return MCPResponse(success=False, error=str(e))
+
+@app.get("/health")
+async def health_check():
+    """헬스 체크"""
+    return {"status": "healthy", "service": "video-mcp-http-server"}
+
 async def main():
     """MCP 서버 메인 함수"""
     logger.info("🚀 Video MCP 서버 시작 중...")
@@ -238,4 +366,19 @@ async def main():
         )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    """메인 실행"""
+    import sys
+    
+    # 명령행 인수로 실행 모드 결정
+    if len(sys.argv) > 1 and sys.argv[1] == "--http":
+        # HTTP 서버 모드로 실행
+        logger.info("🚀 Video MCP HTTP 서버 시작 중...")
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=8002, 
+            log_level="info"
+        )
+    else:
+        # 기본 stdio 모드로 실행
+        asyncio.run(main())

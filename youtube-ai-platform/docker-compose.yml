@@ -1,72 +1,75 @@
 version: '3.8'
 
 services:
-  # YouTube 데이터 처리 MCP 서버 (포트 8001)
   youtube-mcp-server:
     build:
       context: ./servers/youtube
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - youtube-ai-platform-youtube-mcp-server:latest
     container_name: youtube-mcp-server
     ports:
       - "8001:8001"
-    environment:
-      - YOUTUBE_MCP_PORT=8001
-      - YOUTUBE_MCP_HOST=0.0.0.0
     volumes:
       - ./servers/youtube:/app
-      - ./uploads:/app/uploads
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      - PYTHONPATH=/app
+    command: python youtube_mcp_server.py
     networks:
       - youtube-ai-network
     restart: unless-stopped
-    command: ["python", "youtube_mcp_server.py"]
-    stdin_open: true
-    tty: true
 
-  # 비디오 처리 MCP 서버 (포트 8002)
   video-mcp-server:
     build:
       context: ./servers/video
       dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - youtube-ai-platform-video-mcp-server:latest
     container_name: video-mcp-server
     ports:
       - "8002:8002"
-    environment:
-      - VIDEO_MCP_PORT=8002
-      - VIDEO_MCP_HOST=0.0.0.0
     volumes:
       - ./servers/video:/app
-      - ./uploads:/app/uploads
-      - ./servers/video/video:/app/video
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      - PYTHONPATH=/app
+    command: python video_mcp_server.py --http
     networks:
       - youtube-ai-network
     restart: unless-stopped
-    command: ["python", "video_mcp_server.py"]
-    stdin_open: true
-    tty: true
 
-  # Rust 백엔드 API 서버 (포트 3000) - MCP 서버들을 자식 프로세스로 실행
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - youtube-ai-platform-backend:latest
     container_name: youtube-ai-backend
     ports:
       - "3000:8080"
-    environment:
-      - YOUTUBE_MCP_URL=youtube-mcp-server:8001
-      - VIDEO_MCP_URL=video-mcp-server:8002
     volumes:
-      - ./servers/youtube:/app/youtube
-      - ./servers/video:/app/video
+      - ./backend/static:/app/static
+      - ./servers:/app/servers
       - ./uploads:/app/uploads
-      - ./static:/app/static
-    working_dir: /app
-    networks:
-      - youtube-ai-network
-    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env}
+    environment:
+      - RUST_LOG=info
     depends_on:
       - youtube-mcp-server
       - video-mcp-server
+    networks:
+      - youtube-ai-network
+    restart: unless-stopped
 
 networks:
   youtube-ai-network:
