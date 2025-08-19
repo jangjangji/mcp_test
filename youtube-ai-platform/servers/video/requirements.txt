@@ -8,11 +8,11 @@ python-dotenv>=1.0.0
 requests>=2.32.4
 Pillow>=10.0.0
 numpy>=1.24.3
-opencv-python>=4.8.0
+opencv-python-headless>=4.8.0
 
-# CLIP 관련 (별도 설치)
-# torch==2.8.0
-# torchvision==0.23.0
-# ftfy
-# regex
-# clip-by-openai
+# CLIP 관련 패키지들
+torch>=2.0.0
+torchvision>=0.15.0
+ftfy
+regex
+git+https://github.com/openai/CLIP.git
