@@ -925,7 +925,6 @@ function displayCompareResult(result) {
 // 비디오 업로드 함수
 async function uploadVideo() {
     const fileInput = document.getElementById('video-file');
-    const videoIdInput = document.getElementById('video-id');
     const resultDiv = document.getElementById('video-upload-result');
     
     if (!fileInput.files[0]) {
@@ -934,23 +933,52 @@ async function uploadVideo() {
     }
     
     const file = fileInput.files[0];
-    const videoId = videoIdInput.value || file.name.replace(/\.[^/.]+$/, "");
+    
+    // videoId 설정: 파일명에서 확장자 제거 (예: "새.mp4" -> "새")
+    const videoId = file.name.split('.').slice(0, -1).join('.');
+    
+    // 파일 객체 상세 정보 로깅
+    console.log('🔍 파일 객체 상세 정보:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        isFile: file instanceof File,
+        constructor: file.constructor.name
+    });
+    
+    console.log('🔍 업로드 시작:', {
+        fileName: file.name,
+        fileSize: file.size,
+        videoId: videoId,
+        extractedVideoId: file.name.split('.').slice(0, -1).join('.')
+    });
     
     showLoading('video-upload-result');
     
     try {
-        // 파일을 서버로 업로드
+        // FormData로 실제 파일 업로드
         const formData = new FormData();
-        formData.append('video', file);
         formData.append('video_id', videoId);
-        formData.append('original_filename', file.name); // 원본 파일명 추가
+        formData.append('original_filename', file.name);
+        formData.append('video', file);
+        
+        console.log('📤 FormData 내용:');
+        for (let [key, value] of formData.entries()) {
+            console.log(`  ${key}: ${value}`);
+        }
+        
+        console.log('🚀 서버로 업로드 시작...');
         
         const response = await fetch('/api/upload-video', {
             method: 'POST',
             body: formData
         });
         
+        console.log('✅ 서버 응답 받음:', response.status);
+        
         const result = await response.json();
+        console.log('📥 응답 데이터:', result);
         
         if (result.success) {
             resultDiv.innerHTML = `
@@ -964,7 +992,7 @@ async function uploadVideo() {
             showAlert('video-upload-result', `업로드 실패: ${result.error}`, 'danger');
         }
     } catch (error) {
-        console.error('업로드 오류:', error);
+        console.error('❌ 업로드 오류:', error);
         showAlert('video-upload-result', `업로드 중 오류가 발생했습니다: ${error.message}`, 'danger');
     }
 }

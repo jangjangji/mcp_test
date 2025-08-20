@@ -1,0 +1,21 @@
+# Rust 빌드 아티팩트
+target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE 파일
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# 로그 파일
+*.log
+
+# 임시 파일
+*.tmp
+*.temp

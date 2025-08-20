@@ -34,6 +34,7 @@ services:
       - "8002:8002"
     volumes:
       - ./servers/video:/app
+      - ./uploads:/app/uploads  # uploads 폴더 마운트 추가
     env_file:
       - ${ENV_FILE:-.env}
     environment:
@@ -55,6 +56,7 @@ services:
     ports:
       - "3000:8080"
     volumes:
+      - ./backend/src:/app/src  # 소스 코드만 동기화
       - ./backend/static:/app/static
       - ./servers:/app/servers
       - ./uploads:/app/uploads

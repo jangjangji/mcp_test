@@ -454,7 +454,9 @@ fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
                             // 시간과 유사도 분리
                             if let Some(paren_pos) = after_dash.find(" (유사도: ") {
                                 let timestamp = after_dash[..paren_pos].trim();
-                                let similarity_part = &after_dash[paren_pos + 7..];  // " (유사도: " 이후
+                                // " (유사도: " 문자열의 실제 길이를 계산 (한글 문자 고려)
+                                let prefix_len = " (유사도: ".len();
+                                let similarity_part = &after_dash[paren_pos + prefix_len..];
                                 let similarity_str = similarity_part.trim_end_matches(')').trim();
                                 
                                 // 시간 형식 검증 (HH:MM:SS)
@@ -492,9 +494,9 @@ async fn transcript_extraction(State(state): State<AppState>, Json(payload): Jso
     println!("📝 자막 추출 요청 받음: {:?}", payload);  // 로그 출력
     
     // 자막 추출은 YouTube MCP 서버에서 처리 (아직 구현되지 않음)
-    let guard = state.mcp.lock().await;  // MCP 클라이언트 사용 가능하게
+    let _guard = state.mcp.lock().await;  // MCP 클라이언트 사용 가능하게
     
-    let args = serde_json::json!({
+    let _args = serde_json::json!({
         "video_url": payload.video_url  // 비디오 URL
     });
     
@@ -575,51 +577,187 @@ async fn search_similar(State(state): State<AppState>, Json(payload): Json<Searc
 
 // 비디오 업로드 함수 (multipart/form-data 처리)
 async fn upload_video(State(state): State<AppState>, mut multipart: Multipart) -> JsonResponse<UploadVideoResponse> {
-    println!("📤 비디오 업로드 요청 받음");  // 로그 출력
+    println!("📤 비디오 업로드 요청 받음");
     
     // multipart 데이터에서 파일과 정보 추출
     let mut video_path = String::new();
     let mut video_name = String::new();
     
-    // multipart 필드들을 하나씩 처리
-    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
-        let field_name = field.name().unwrap_or("").to_string();
-        println!("🔍 필드 발견: {}", field_name);
-        
-        match field_name.as_str() {
-            "video" => {
-                // 파일 데이터는 건너뛰기 (현재는 파일 경로만 처리)
-                println!("📁 비디오 파일 필드 발견");
-                // 파일 데이터 소비
-                let _ = field.bytes().await;
-            }
-            "video_id" => {
-                if let Ok(id) = field.text().await {
-                    video_path = format!("uploads/{}.mp4", id);
-                    println!("🆔 비디오 ID: {}", id);
+    // 모든 필드를 처리
+    println!("🔍 multipart 필드 처리 시작...");
+    
+    // multipart 파싱 시도 (더 안전한 방식)
+    let mut field_count = 0;
+    let mut multipart_parse_error = false;
+    
+    loop {
+        match multipart.next_field().await {
+            Ok(Some(mut field)) => {
+                field_count += 1;
+                let field_name = match field.name() {
+                    Some(name) => name.to_string(),
+                    None => {
+                        println!("⚠️ 이름 없는 필드 발견, 건너뛰기");
+                        let _ = field.bytes().await;
+                        continue;
+                    }
+                };
+                
+                println!("🔍 필드 발견: '{}'", field_name);
+                
+                match field_name.as_str() {
+                    "video" => {
+                        println!("📁 비디오 파일 필드 발견");
+                        println!("🔍 video 필드 상세 정보:");
+                        println!("  - field_name: '{}'", field_name);
+                        println!("  - content_type: {:?}", field.content_type());
+                        println!("  - file_name: {:?}", field.file_name());
+                        
+                        // 스트리밍 방식으로 파일을 직접 디스크에 저장
+                        let mut chunk_count = 0;
+                        let mut total_bytes = 0;
+                        let mut has_error = false;
+                        
+                        // 임시 파일 경로 생성
+                        let temp_video_path = format!("uploads/{}.tmp", video_path.split('/').last().unwrap_or("video"));
+                        println!("💾 스트리밍 저장 시작: {}", temp_video_path);
+                        
+                        // 파일 생성
+                        let mut file = match std::fs::File::create(&temp_video_path) {
+                            Ok(file) => file,
+                            Err(e) => {
+                                println!("❌ 임시 파일 생성 실패: {}", e);
+                                has_error = true;
+                                break;
+                            }
+                        };
+                        
+                        loop {
+                            match field.chunk().await {
+                                Ok(Some(bytes)) => {
+                                    // 청크를 직접 파일에 쓰기
+                                    match std::io::Write::write_all(&mut file, &bytes) {
+                                        Ok(_) => {
+                                            chunk_count += 1;
+                                            total_bytes += bytes.len();
+                                            if chunk_count % 10 == 0 {
+                                                println!("📦 청크 {} 처리 완료, 현재 크기: {} bytes", chunk_count, total_bytes);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("❌ 청크 {} 쓰기 실패: {}", chunk_count, e);
+                                            has_error = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                Ok(None) => {
+                                    println!("✅ 모든 청크 처리 완료");
+                                    break;
+                                }
+                                Err(e) => {
+                                    println!("❌ 청크 {} 읽기 실패: {}", chunk_count, e);
+                                    has_error = true;
+                                    // 오류가 발생해도 지금까지 쓴 데이터는 유지
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // 파일 닫기
+                        drop(file);
+                        
+                        // 파일 읽기 결과 요약
+                        if has_error {
+                            println!("⚠️ 파일 읽기/쓰기 도중 에러 발생 ({} bytes 저장됨)", total_bytes);
+                        } else {
+                            println!("✅ 파일 읽기/쓰기 완료 (총 {} bytes)", total_bytes);
+                        }
+                        
+                        if total_bytes > 0 {
+                            // 임시 파일을 최종 파일로 이동
+                            video_path = format!("uploads/{}.mp4", video_name.split('.').next().unwrap_or("video"));
+                            if let Err(e) = std::fs::rename(&temp_video_path, &video_path) {
+                                println!("❌ 파일 이동 실패: {}", e);
+                                // 이동 실패 시 임시 파일 삭제
+                                let _ = std::fs::remove_file(&temp_video_path);
+                            } else {
+                                println!("✅ 파일 저장 완료: {} ({} bytes)", video_path, total_bytes);
+                            }
+                        } else {
+                            println!("❌ 파일 데이터가 없음");
+                            // 임시 파일 삭제
+                            let _ = std::fs::remove_file(&temp_video_path);
+                        }
+                    }
+                    "video_id" => {
+                        println!("🆔 video_id 필드 읽기 시도...");
+                        match field.text().await {
+                            Ok(id) => {
+                                video_path = format!("uploads/{}.mp4", id);
+                                println!("✅ video_id 읽기 성공: '{}'", id);
+                            }
+                            Err(e) => {
+                                println!("❌ video_id 필드 읽기 실패: {}", e);
+                            }
+                        }
+                    }
+                    "original_filename" => {
+                        println!("📝 original_filename 필드 읽기 시도...");
+                        match field.text().await {
+                            Ok(filename) => {
+                                video_name = filename.clone();
+                                println!("✅ original_filename 읽기 성공: '{}'", filename);
+                            }
+                            Err(e) => {
+                                println!("❌ original_filename 읽기 실패: {}", e);
+                            }
+                        }
+                    }
+                    _ => {
+                        println!("⚠️ 알 수 없는 필드: '{}'", field_name);
+                        let _ = field.bytes().await;
+                    }
                 }
             }
-            "original_filename" => {
-                if let Ok(filename) = field.text().await {
-                    video_name = filename.clone();
-                    println!("📝 원본 파일명: {}", filename);
-                }
+            Ok(None) => {
+                println!("✅ 모든 필드 처리 완료 (총 {}개 필드)", field_count);
+                break;
             }
-            _ => {
-                println!("⚠️ 알 수 없는 필드: {}", field_name);
-                // 알 수 없는 필드 데이터 소비
-                let _ = field.bytes().await;
+            Err(e) => {
+                println!("❌ multipart 파싱 오류: {}", e);
+                multipart_parse_error = true;
+                // 파싱 오류가 발생해도 지금까지 읽은 데이터는 유지
+                break;
             }
         }
     }
     
+    println!("📊 최종 결과:");
+    println!("  - video_path: '{}'", video_path);
+    println!("  - video_name: '{}'", video_name);
+    println!("  - multipart_parse_error: {}", multipart_parse_error);
+    
     if video_path.is_empty() {
+        println!("❌ video_path가 비어있음 - 업로드 실패");
         return JsonResponse(UploadVideoResponse { 
             success: false, 
             data: None,
             error: Some("비디오 ID가 제공되지 않았습니다.".to_string())
         });
     }
+    
+    // 파일이 실제로 존재하는지 확인
+    if !std::path::Path::new(&video_path).exists() {
+        println!("❌ 파일이 존재하지 않음: {}", video_path);
+        return JsonResponse(UploadVideoResponse { 
+            success: false, 
+            data: None,
+            error: Some("파일 저장에 실패했습니다.".to_string())
+        });
+    }
+    
+    println!("🚀 Video MCP 서버에 add_video 도구 호출 시작...");
     
     // Video MCP 서버에 비디오 추가 요청
     let guard = state.mcp.lock().await;
@@ -628,7 +766,9 @@ async fn upload_video(State(state): State<AppState>, mut multipart: Multipart) -
         "video_name": if video_name.is_empty() { None } else { Some(video_name.clone()) }
     });
     
-    match guard.call_tool(&guard.video_base_url, "add_video", args).await {
+    println!("📤 MCP 서버로 전송할 데이터: {:?}", args);
+    
+    match guard.call_video_tool("add_video", args).await {
         Ok(result) => {
             println!("✅ Video MCP 서버 응답: {:?}", result);
             JsonResponse(UploadVideoResponse { 
@@ -653,19 +793,11 @@ async fn upload_video(State(state): State<AppState>, mut multipart: Multipart) -
 }
 
 // 트렌딩 분석 함수 (아직 구현되지 않음)
-async fn trending_analysis(State(state): State<AppState>, Json(payload): Json<TrendingAnalysisRequest>) -> JsonResponse<TrendingAnalysisResponse> {
+async fn trending_analysis(State(_state): State<AppState>, Json(payload): Json<TrendingAnalysisRequest>) -> JsonResponse<TrendingAnalysisResponse> {
     println!("📊 트렌딩 분석 요청 받음: {:?}", payload);  // 로그 출력
-    
-    // YouTube MCP 서버에 트렌딩 분석 요청
-    let guard = state.mcp.lock().await;  // MCP 클라이언트 사용 가능하게
     
     let region = payload.region.unwrap_or_else(|| "KR".to_string());  // 지역 (없으면 한국)
     let max_results = payload.max_results.unwrap_or(10);  // 최대 결과 수 (없으면 10)
-    
-    let args = serde_json::json!({
-        "region": region.clone(),  // 지역
-        "max_results": max_results  // 최대 결과 수
-    });
     
     // YouTube MCP 서버에 트렌딩 분석 요청 (실제로는 구현 필요)
     JsonResponse(TrendingAnalysisResponse { 
