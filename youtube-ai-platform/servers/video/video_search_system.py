@@ -211,12 +211,27 @@ class VideoSearchSystem:
             # 텍스트 임베딩을 Supabase vector 형식으로 변환
             text_vector = numpy_to_vector_string(text_features)
             
+            print(f"🔍 검색 텍스트: '{query}'")
+            print(f"🔍 텍스트 벡터 차원: {text_features.shape}")
+            print(f"🔍 벡터 값 (처음 5개): {text_features[:5]}")
+            
             # Supabase의 match_video_frames 함수 호출 (PostgreSQL 함수)
             # 이 함수는 벡터 유사도를 계산하여 가장 유사한 프레임들을 반환
+            print(f"🔍 match_video_frames 함수 호출 시작...")
+            print(f"🔍 입력 벡터 길이: {len(text_vector)}")
+            print(f"🔍 match_count: {top_k}")
+            
             response = supabase.rpc("match_video_frames", {
                 "input_vector": text_vector,  # 검색할 텍스트 벡터
                 "match_count": top_k          # 반환할 결과 수
             }).execute()
+            
+            print(f"🔍 Supabase 응답: {response.data}")
+            print(f"🔍 응답 데이터 타입: {type(response.data)}")
+            if response.data:
+                print(f"🔍 응답 데이터 길이: {len(response.data)}")
+                for i, item in enumerate(response.data):
+                    print(f"🔍 결과 {i+1}: video_id={item.get('video_id')}, similarity={item.get('similarity')}")
             
             # 3단계: 검색 결과 처리
             if response.data:  # 검색 결과가 있으면
@@ -260,6 +275,37 @@ class VideoSearchSystem:
         except Exception as e:
             print(f"❌ 비디오 삭제 실패: {str(e)}")
             return False
+    
+    def debug_video_embeddings(self, video_id: str):
+        """
+        특정 비디오의 임베딩 벡터를 디버깅하는 함수
+        
+        video_id: 확인할 비디오의 ID
+        """
+        try:
+            print(f"🔍 '{video_id}' 비디오의 임베딩 벡터 확인 중...")
+            
+            # video_frames 테이블에서 해당 비디오의 모든 프레임 조회
+            response = supabase.table("video_frames").select("*").eq("video_id", video_id).execute()
+            
+            if response.data:
+                print(f"✅ '{video_id}' 비디오에서 {len(response.data)}개 프레임 발견")
+                
+                for i, frame in enumerate(response.data[:3]):  # 처음 3개만 출력
+                    embedding = frame.get("embedding", "")
+                    timestamp = frame.get("frame_timestamp", 0)
+                    
+                    # 벡터 길이 계산 (대괄호와 쉼표로 분리)
+                    vector_length = len(embedding.strip("[]").split(","))
+                    
+                    print(f"  프레임 {i+1} (시간: {timestamp}):")
+                    print(f"    벡터 길이: {vector_length}")
+                    print(f"    임베딩 (처음 10개): {embedding[:100]}...")
+            else:
+                print(f"❌ '{video_id}' 비디오의 프레임을 찾을 수 없습니다")
+                
+        except Exception as e:
+            print(f"❌ 디버깅 실패: {str(e)}")
 
 
 # 실제 사용 예시를 보여주는 데모 함수

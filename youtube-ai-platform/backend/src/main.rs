@@ -417,65 +417,56 @@ async fn video_search(State(state): State<AppState>, Json(payload): Json<VideoSe
     }
 }
 
-// Video MCP 서버의 응답을 파싱하는 헬퍼 함수 - 핵심 함수!
+// Video MCP 서버의 응답을 파싱하는 헬퍼 함수
 // response: Video MCP 서버에서 받은 JSON 문자열
 // -> Vec<serde_json::Value>: 파싱된 결과 배열 반환
 fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
-    // Video MCP 서버 응답 예시:
-    // {"success":true,"data":{"result":"검색 결과: 2개\n1. dog_video - 00:00:05 (유사도: 0.996)\n2. dog_video - 00:00:07 (유사도: 0.928)"}}
-    
-    let mut results = Vec::new();  // 결과를 저장할 빈 배열
+    let mut results = Vec::new();
     
     // JSON 응답 파싱 시도
-    if let Ok(json_response) = serde_json::from_str::<serde_json::Value>(response) {  // JSON 문자열을 객체로 변환
-        if let Some(data) = json_response.get("data") {  // "data" 필드 가져오기
-            if let Some(result_str) = data.get("result").and_then(|r| r.as_str()) {  // "result" 필드를 문자열로 가져오기
-                println!("🔍 파싱할 문자열: {}", result_str);  // 파싱할 문자열 로그
+    if let Ok(json_response) = serde_json::from_str::<serde_json::Value>(response) {
+        if let Some(data) = json_response.get("data") {
+            if let Some(result_str) = data.get("result").and_then(|r| r.as_str()) {
+                println!("🔍 파싱할 문자열: {}", result_str);
                 
-                // 줄바꿈으로 분리 (각 검색 결과를 줄별로 처리)
-                let lines: Vec<&str> = result_str.lines().collect();  // 줄별로 분리
-                
-                for line in lines {  // 각 줄을 하나씩 처리
-                    // "1. dog - 00:00:05 (유사도: 0.996)" 형태만 파싱
-                    // 정규식으로 올바른 형식만 매칭
-                    if line.contains("(유사도:") && line.contains(":") {
-                        // "숫자. 이름 - 시간 (유사도: 값)" 패턴 찾기
-                        if let Some(dash_pos) = line.rfind(" - ") {  // 마지막 " - " 찾기 (시간 앞의 구분자)
-                            let before_dash = &line[..dash_pos];     // " - " 앞 부분
-                            let after_dash = &line[dash_pos + 3..];  // " - " 뒤 부분
+                // 각 줄을 처리
+                for line in result_str.lines() {
+                    // "1. dog - 00:00:08 (유사도: 1.000)" 형태 파싱
+                    if line.contains("(유사도:") && line.contains(" - ") {
+                        // 정규식 없이 안전한 문자열 파싱
+                        if let Some(dash_pos) = line.rfind(" - ") {
+                            let before_dash = &line[..dash_pos];
+                            let after_dash = &line[dash_pos + 3..];
                             
                             // 비디오 이름 추출 (숫자와 점 제거)
                             let video_name = if let Some(dot_pos) = before_dash.find(". ") {
-                                before_dash[dot_pos + 2..].trim()
+                                &before_dash[dot_pos + 2..]
                             } else {
-                                before_dash.trim()
-                            };
+                                before_dash
+                            }.trim();
                             
                             // 시간과 유사도 분리
                             if let Some(paren_pos) = after_dash.find(" (유사도: ") {
-                                let timestamp = after_dash[..paren_pos].trim();
-                                // " (유사도: " 문자열의 실제 길이를 계산 (한글 문자 고려)
-                                let prefix_len = " (유사도: ".len();
-                                let similarity_part = &after_dash[paren_pos + prefix_len..];
+                                let timestamp = &after_dash[..paren_pos];
+                                let similarity_part = &after_dash[paren_pos + " (유사도: ".len()..];
                                 let similarity_str = similarity_part.trim_end_matches(')').trim();
                                 
                                 // 시간 형식 검증 (HH:MM:SS)
                                 if timestamp.matches(':').count() == 2 {
-                                    let similarity: f64 = similarity_str.parse().unwrap_or(0.0);
-                                    
-                                    println!("📹 비디오 이름: {}", video_name);
-                                    println!("⏰ 시간: {}, 유사도: {}", timestamp, similarity);
-                                    
-                                    // 결과 객체 만들기
-                                    let result = serde_json::json!({
-                                        "video_name": video_name,                                    // 비디오 이름
-                                        "title": format!("{} 비디오", video_name),                   // 제목
-                                        "timestamp": timestamp,                                      // 시간
-                                        "similarity": similarity,                                    // 유사도
-                                        "description": format!("{}에서 발견된 장면", video_name)     // 설명
-                                    });
-                                    
-                                    results.push(result);  // 결과 배열에 추가
+                                    if let Ok(similarity) = similarity_str.parse::<f64>() {
+                                        println!("📹 비디오 이름: {}, 시간: {}, 유사도: {}", video_name, timestamp, similarity);
+                                        
+                                        // 결과 객체 생성
+                                        let result = serde_json::json!({
+                                            "video_name": video_name,
+                                            "title": format!("{} 비디오", video_name),
+                                            "timestamp": timestamp,
+                                            "similarity": similarity,
+                                            "description": format!("{}에서 발견된 장면", video_name)
+                                        });
+                                        
+                                        results.push(result);
+                                    }
                                 }
                             }
                         }
@@ -485,8 +476,8 @@ fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
         }
     }
     
-    println!("📝 파싱된 검색 결과: {:?}", results);  // 최종 결과 로그
-    results  // 파싱된 결과 배열 반환
+    println!("📝 파싱된 검색 결과: {}개", results.len());
+    results
 }
 
 // 자막 추출 함수 (아직 구현되지 않음)
