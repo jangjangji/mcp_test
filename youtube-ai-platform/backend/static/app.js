@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = 'http://127.0.0.1:8080';
 
 // 유사도 검색
 async function searchSimilar() {
@@ -40,7 +40,7 @@ async function searchYouTube() {
 
     showLoading('search-result');
     try {
-        const response = await fetch('http://localhost:3000/api/youtube/search', {
+        const response = await fetch('http://127.0.0.1:3000/api/youtube/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: query })
@@ -1652,7 +1652,7 @@ async function processChatMessage(message) {
             console.log('🎥 Video MCP 도구 강제 호출:', query);
             try {
                 // Video MCP 직접 호출
-                const response = await fetch('http://localhost:3000/api/search-video', {
+                const response = await fetch('http://127.0.0.1:3000/api/search-video', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query, top_k: 5 })
@@ -1722,7 +1722,7 @@ function extractQuery(message) {
 // YouTube 검색 API 호출
 async function callYouTubeSearch(query) {
     try {
-        const response = await fetch('http://localhost:3000/api/youtube/search', {
+        const response = await fetch('http://127.0.0.1:3000/api/youtube/search', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1744,7 +1744,7 @@ async function callYouTubeSearch(query) {
 // 비디오 검색 API 호출
 async function callVideoSearch(query) {
     try {
-        const response = await fetch('http://localhost:3000/api/search-video', {
+        const response = await fetch('http://127.0.0.1:3000/api/search-video', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1766,7 +1766,7 @@ async function callVideoSearch(query) {
 // 채널 분석 API 호출
 async function callChannelAnalysis(query) {
     try {
-        const response = await fetch('http://localhost:3000/api/channel-info', {
+        const response = await fetch('http://127.0.0.1:3000/api/channel-info', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1788,7 +1788,7 @@ async function callChannelAnalysis(query) {
 // 트렌딩 분석 API 호출
 async function callTrendingAnalysis() {
     try {
-        const response = await fetch('http://localhost:3000/api/trending-analysis', {
+        const response = await fetch('http://127.0.0.1:3000/api/trending-analysis', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
