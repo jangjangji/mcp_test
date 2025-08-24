@@ -39,21 +39,18 @@ WORKDIR /app
 # 빌더에서 바이너리 복사
 COPY --from=builder /app/target/release/youtube-search-api /app/youtube-search-api
 
-# static 디렉토리 복사
-COPY --from=builder /app/static /app/static
-
-# MCP 서버 코드 복사
-COPY servers/youtube /app/youtube
-COPY servers/video /app/video
+# static 디렉토리와 MCP 서버 코드는 볼륨으로 마운트하므로 복사하지 않음
+# COPY --from=builder /app/static /app/static
+# COPY servers/youtube /app/youtube
+# COPY servers/video /app/video
 
 # Python 가상환경 생성 및 MCP 의존성 설치
 RUN python3 -m venv /app/venv
 ENV PATH="/app/venv/bin:$PATH"
 
-# requirements.txt 복사 및 설치
-RUN pip install --upgrade pip && \
-    pip install -r /app/youtube/requirements.txt && \
-    pip install -r /app/video/requirements.txt
+# requirements.txt는 볼륨으로 마운트되므로 빌드 시에는 설치하지 않음
+# 런타임에 볼륨 마운트된 파일을 사용
+RUN pip install --upgrade pip
 
 # 업로드 디렉토리 생성
 RUN mkdir -p /app/uploads && chown -R appuser:appuser /app

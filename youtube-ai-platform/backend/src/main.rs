@@ -268,7 +268,7 @@ async fn youtube_search(State(state): State<AppState>, Json(payload): Json<YouTu
     });
 
     // YouTube MCP 서버 호출
-    match guard.call_tool("youtube-mcp-server", "youtube_search", args).await {
+    match guard.call_tool("http://youtube-mcp-server:8001", "youtube_search", args).await {
         Ok(response) => {  // 성공하면
             // JSON 응답 파싱 시도
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&response) {
@@ -336,7 +336,7 @@ async fn channel_info(State(state): State<AppState>, Json(payload): Json<Channel
     println!("🚀 MCP 도구 호출 시작: analyze_channel");  // 로그 출력
     
     // YouTube MCP 서버 호출
-    match guard.call_tool("youtube-mcp-server", "analyze_channel", args).await {
+    match guard.call_tool("http://youtube-mcp-server:8001", "analyze_channel", args).await {
         Ok(response) => {  // 성공하면
             println!("✅ MCP 응답 받음: {}", response);  // 응답 로그
             
