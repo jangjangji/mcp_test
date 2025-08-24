@@ -245,10 +245,8 @@ class VideoSearchSystem:
                         "similarity": item.get("similarity", 0.0)   # 유사도 점수
                     })
                 
-                # 유사도 점수를 0-1 범위로 정규화 (더 직관적인 점수로 만들기)
-                max_similarity = max([r["similarity"] for r in results]) if results else 1.0
-                for result in results:
-                    result["similarity"] = max(0.0, min(1.0, result["similarity"] / max_similarity))
+                # Supabase에서 이미 정규화된 유사도 점수를 반환하므로 추가 정규화 불필요
+                # 유사도 점수는 그대로 사용 (0-1 범위)
                 
                 print(f"✅ 검색 완료: {len(results)}개 결과")
                 return results
@@ -308,46 +306,6 @@ class VideoSearchSystem:
             print(f"❌ 디버깅 실패: {str(e)}")
 
 
-# 실제 사용 예시를 보여주는 데모 함수
-def demo():
-    """
-    시스템의 전체 동작을 보여주는 데모 함수
-    """
-    print("🚀 CLIP 기반 비디오 검색 시스템 데모")
-    print("=" * 50)
-    
-    # 1단계: 시스템 초기화 (CLIP 모델 로드)
-    system = VideoSearchSystem()
-    
-    # 2단계: 기존 데이터 삭제 (새로운 설정으로 테스트하기 위해)
-    system.clear_video_from_db("dog_video")
-    
-    # 3단계: 비디오를 데이터베이스에 추가
-    video_id = system.add_video_to_db("video/dog.mp4", "dog_video")
-    
-    # 4단계: 다양한 텍스트로 검색 테스트
-    queries = [
-        "강아지가 물속에서 헤엄치는 장면",
-        "강아지가 물속에서 공을 무는 장면",
-        "강아지가 물에서 놀고 있는 장면"
-    ]
-    
-    # 각 검색 쿼리에 대해 결과 출력
-    for query in queries:
-        print(f"\n🔍 검색: '{query}'")
-        results = system.search_video_in_db(query, top_k=3)  # 상위 3개 결과만
-        
-        # 검색 결과를 보기 좋게 출력
-        for i, result in enumerate(results):
-            # 시간을 HH:MM:SS 형식으로 변환
-            seconds = result["timestamp"]
-            hours = int(seconds // 3600)
-            minutes = int((seconds % 3600) // 60)
-            secs = int(seconds % 60)
-            timestamp = f"{hours:02d}:{minutes:02d}:{secs:02d}"
-            
-            print(f"  {i+1}. {result['video_id']} - {timestamp} (유사도: {result['similarity']:.3f})")
-
-# 이 파일이 직접 실행될 때만 데모 함수 실행
+# 이 파일이 직접 실행될 때만 실행
 if __name__ == "__main__":
-    demo()
+    print("🚀 VideoSearchSystem 모듈 로드 완료")

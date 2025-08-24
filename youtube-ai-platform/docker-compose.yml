@@ -39,7 +39,9 @@ services:
       - ${ENV_FILE:-.env}
     environment:
       - PYTHONPATH=/app
-    command: python video_mcp_server.py --http
+      - PYTHONDONTWRITEBYTECODE=1  # Python 바이트코드 캐시 비활성화
+      - PYTHONUNBUFFERED=1  # Python 출력 버퍼링 비활성화
+    command: python -u video_mcp_server.py --http  # -u 플래그로 출력 버퍼링 비활성화
     networks:
       - youtube-ai-network
     restart: unless-stopped

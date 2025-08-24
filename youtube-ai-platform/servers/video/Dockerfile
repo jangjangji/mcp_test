@@ -18,8 +18,9 @@ RUN apt-get update && apt-get install -y \
 # Python 의존성 파일 복사
 COPY requirements.txt .
 
-# 모든 Python 패키지 설치 (requirements.txt에 모든 것이 포함됨)
-RUN pip install --no-cache-dir -r requirements.txt
+# pip 업그레이드 및 패키지 설치
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --timeout 600 --retries 5 --default-timeout 600 -r requirements.txt
 
 # 애플리케이션 코드 복사
 COPY . .

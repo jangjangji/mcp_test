@@ -7,7 +7,9 @@ use axum::{  // axum: 웹 서버 프레임워크
     response::{Html, Json as JsonResponse},  // response: 응답 타입들 (Html, Json)
     routing::{get, post},  // routing: 라우팅 기능(GET, POST 요청 처리)
     Router,              // Router: 라우터(URL 경로와 함수를 연결하는 역할)
+    extract::Path,      // Path: URL 경로에서 파라미터를 추출하는 기능
 };
+use axum::response::IntoResponse;  // into_response() 사용을 위해 트레이트 임포트
 use serde::{Deserialize, Serialize};  // serde: JSON 변환을 위한 라이브러리
 use std::sync::Arc;      // Arc: 여러 스레드에서 안전하게 데이터 공유
 use tokio::sync::Mutex;  // Mutex: 비동기 환경에서 데이터 보호 (한 번에 하나만 접근)
@@ -431,7 +433,7 @@ fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
                 
                 // 각 줄을 처리
                 for line in result_str.lines() {
-                    // "1. dog - 00:00:08 (유사도: 1.000)" 형태 파싱
+                    // "1. video_name - timestamp (유사도: similarity)" 형태 파싱
                     if line.contains("(유사도:") && line.contains(" - ") {
                         // 정규식 없이 안전한 문자열 파싱
                         if let Some(dash_pos) = line.rfind(" - ") {
@@ -459,10 +461,10 @@ fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
                                         // 결과 객체 생성
                                         let result = serde_json::json!({
                                             "video_name": video_name,
-                                            "title": format!("{} 비디오", video_name),
+                                            "title": video_name,
                                             "timestamp": timestamp,
                                             "similarity": similarity,
-                                            "description": format!("{}에서 발견된 장면", video_name)
+                                            "description": format!("CLIP AI 검색 결과")
                                         });
                                         
                                         results.push(result);
@@ -802,6 +804,24 @@ async fn trending_analysis(State(_state): State<AppState>, Json(payload): Json<T
     })
 }
 
+// Static 파일을 동적으로 서빙하는 함수들
+async fn serve_static_file(path: &str) -> Result<axum::response::Response<String>, std::io::Error> {
+    let file_path = format!("static/{}", path);
+    let content = std::fs::read_to_string(&file_path)?;
+    
+    let content_type = match path {
+        path if path.ends_with(".js") => "application/javascript",
+        path if path.ends_with(".css") => "text/css",
+        path if path.ends_with(".html") => "text/html",
+        _ => "text/plain",
+    };
+    
+    Ok(axum::response::Response::builder()
+        .header("Content-Type", content_type)
+        .body(content)
+        .unwrap())
+}
+
 // 메인 함수 (서버 시작점)
 #[tokio::main]  // 비동기 메인 함수
 async fn main() {
@@ -830,9 +850,30 @@ async fn main() {
     // 라우터 설정 (URL 경로와 함수 연결)
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))                    // 헬스 체크 엔드포인트
-        .route("/", get(|| async { Html(include_str!("../static/index.html")) }))  // 메인 페이지
-        .route("/static/app.js", get(|| async { Html(include_str!("../static/app.js")) }))  // JavaScript 파일
-        .route("/static/style.css", get(|| async { Html(include_str!("../static/style.css")) }))  // CSS 파일
+        .route("/", get(|| async { 
+            match serve_static_file("index.html").await {
+                Ok(response) => response.into_response(),
+                Err(_) => Html("파일을 찾을 수 없습니다").into_response()
+            }
+        }))
+        .route("/static/:file", get(|Path(file): Path<String>| async move {
+            match serve_static_file(&file).await {
+                Ok(response) => response.into_response(),
+                Err(_) => Html("파일을 찾을 수 없습니다").into_response()
+            }
+        }))
+        .route("/static/app.js", get(|| async { 
+            match serve_static_file("app.js").await {
+                Ok(response) => response.into_response(),
+                Err(_) => Html("파일을 찾을 수 없습니다").into_response()
+            }
+        }))
+        .route("/static/style.css", get(|| async { 
+            match serve_static_file("style.css").await {
+                Ok(response) => response.into_response(),
+                Err(_) => Html("파일을 찾을 수 없습니다").into_response()
+            }
+        }))
         .route("/api/youtube/search", post(youtube_search))          // YouTube 검색 API
         .route("/api/search-video", post(video_search))              // 비디오 검색 API (핵심!)
         .route("/api/channel-info", post(channel_info))              // 채널 정보 API

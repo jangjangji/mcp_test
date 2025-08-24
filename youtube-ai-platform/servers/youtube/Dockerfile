@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Python 패키지 설치
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 300 --retries 3 -r requirements.txt
 
 # 애플리케이션 코드 복사
 COPY . .

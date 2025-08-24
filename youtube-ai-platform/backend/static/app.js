@@ -1091,7 +1091,7 @@ async function searchVideo() {
                                             <p class="card-text">
                                                 <strong>시간:</strong> ${timestamp}<br>
                                                 <strong>파일:</strong> ${title}<br>
-                                                <strong>설명:</strong> ${resultItem.description || '설명 없음'}
+                                                <strong>설명:</strong> CLIP AI 검색 결과
                                             </p>
                                         </div>
                                         <div class="col-md-4 text-end">
@@ -1568,12 +1568,39 @@ async function sendChatMessage() {
     }
 }
 
+// 의도 분석 함수 (전역 함수로 정의)
+function analyzeIntent(message) {
+    console.log('🔍 의도 분석 시작:', message);
+    console.log('🔍 메시지에 "유튜브" 포함 여부:', message.includes('유튜브'));
+    console.log('🔍 메시지에 "youtube" 포함 여부:', message.includes('youtube'));
+    
+    // YouTube MCP 의도: 일반 YouTube 검색 (우선순위 높음)
+    if (message.includes('유튜브') || message.includes('youtube') || message.includes('인기') ||
+        message.includes('트렌딩') || message.includes('채널') || message.includes('구독자') ||
+        message.includes('추천') || message.includes('인기 영상')) {
+        console.log('✅ YouTube MCP 의도 감지됨 - 유튜브 키워드 발견');
+        return 'youtube_search';
+    }
+    
+    // Video MCP 의도: 내 비디오에서 장면 찾기
+    if (message.includes('내') || message.includes('저의') || message.includes('개인') ||
+        message.includes('장면') || message.includes('찾') || message.includes('검색') ||
+        message.includes('강아지') || message.includes('헤엄치') || message.includes('수영') ||
+        message.includes('동물') || message.includes('반려동물')) {
+        console.log('✅ Video MCP 의도 감지됨 - 비디오 검색 키워드 발견');
+        return 'video_search';
+    }
+    
+    console.log('⚠️ 기본값: Video MCP - 키워드 없음');
+    return 'video_search';
+}
+
 // 채팅 메시지 처리 (MCP 서버 연동)
 async function processChatMessage(message) {
     const lowerMessage = message.toLowerCase();
     
     // 의도 파악을 통한 MCP 선택
-    const intent = analyzeIntent(lowerMessage);
+    const intent = analyzeIntent(message); // lowerMessage 대신 원본 message 사용
     console.log('🔍 의도 분석 결과:', intent);
     
     if (intent === 'video_search') {
@@ -1599,105 +1626,8 @@ async function processChatMessage(message) {
         }
     }
     
-    // 의도 분석 함수
-    function analyzeIntent(message) {
-        // Video MCP 의도: 내 비디오에서 장면 찾기
-        if (message.includes('내') || message.includes('저의') || message.includes('개인') ||
-            message.includes('장면') || message.includes('찾') || message.includes('검색') ||
-            message.includes('강아지') || message.includes('헤엄치') || message.includes('수영') ||
-            message.includes('동물') || message.includes('반려동물')) {
-            return 'video_search';
-        }
-        
-        // YouTube MCP 의도: 일반 YouTube 검색
-        if (message.includes('유튜브') || message.includes('youtube') || message.includes('인기') ||
-            message.includes('트렌딩') || message.includes('채널') || message.includes('구독자') ||
-            message.includes('추천') || message.includes('인기 영상')) {
-            return 'youtube_search';
-        }
-        
-        // 기본값: Video MCP (더 구체적인 검색)
-        return 'video_search';
-    }
-    
-    // 비디오 검색 관련
-    if (lowerMessage.includes('비디오') || lowerMessage.includes('동영상') || lowerMessage.includes('프레임')) {
-        const query = extractQuery(message);
-        if (query) {
-            const result = await callVideoSearch(query);
-            return formatVideoSearchResponse(result, query);
-        }
-    }
-    
-    // 채널 분석 관련
-    if (lowerMessage.includes('채널') || lowerMessage.includes('분석') || lowerMessage.includes('정보')) {
-        const query = extractQuery(message);
-        if (query) {
-            const result = await callChannelAnalysis(query);
-            return formatChannelAnalysisResponse(result, query);
-        }
-    }
-    
-    // 트렌딩 분석
-    if (lowerMessage.includes('트렌딩') || lowerMessage.includes('인기') || lowerMessage.includes('트렌드')) {
-        const result = await callTrendingAnalysis();
-        return formatTrendingResponse(result);
-    }
-    
-    // 동영상 검색 관련 (Video MCP 사용) - 내 비디오에서 장면 찾기
-    if (lowerMessage.includes('강아지') || lowerMessage.includes('헤엄치') || lowerMessage.includes('수영') || 
-        lowerMessage.includes('장면') || lowerMessage.includes('찾아') || lowerMessage.includes('검색')) {
-        const query = extractQuery(message);
-        if (query) {
-            console.log('🎥 Video MCP 도구 강제 호출:', query);
-            try {
-                // Video MCP 직접 호출
-                const response = await fetch('http://127.0.0.1:3000/api/search-video', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, top_k: 5 })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                console.log('Video MCP 직접 호출 결과:', result);
-                
-                if (result.success && result.data && result.data.results) {
-                    return formatVideoSearchResponse(result, query);
-                } else {
-                    return `❌ Video MCP 검색 결과를 가져오는데 실패했습니다.`;
-                }
-            } catch (error) {
-                console.error('Video MCP 직접 호출 오류:', error);
-                return `❌ Video MCP 검색 중 오류가 발생했습니다: ${error.message}`;
-            }
-        }
-    }
-    
-    // YouTube 검색 관련 (YouTube MCP 사용) - 일반 YouTube 검색
-    if (lowerMessage.includes('유튜브') || lowerMessage.includes('youtube') || lowerMessage.includes('인기') || 
-        lowerMessage.includes('트렌딩') || lowerMessage.includes('인기 채널') || lowerMessage.includes('추천') ||
-        lowerMessage.includes('채널 분석') || lowerMessage.includes('구독자')) {
-        const query = extractQuery(message);
-        if (query) {
-            console.log('📺 YouTube MCP 도구 호출:', query);
-            const result = await callYouTubeSearch(query);
-            return formatYouTubeSearchResponse(result, query);
-        }
-    }
-    
-    // 기본 응답
-    return `안녕하세요! YouTube AI 어시스턴트입니다. 다음과 같은 요청을 도와드릴 수 있습니다:
-
-🔍 **YouTube 검색**: "강아지 영상 찾아줘", "요리 영상 검색해줘"
-🎥 **비디오 분석**: "강아지가 뛰는 장면 찾아줘", "비디오에서 사람이 걷는 장면 검색"
-📺 **채널 분석**: "인기 채널 분석해줘", "채널 정보 알려줘"
-📈 **트렌딩**: "트렌딩 영상 알려줘", "인기 콘텐츠 분석해줘"
-
-어떤 도움이 필요하신가요?`;
+    // 의도 분석이 완료되었으므로 여기서 함수 종료
+    return `의도 분석 결과: ${intent} (구체적인 요청을 해주세요)`;
 }
 
 // 쿼리 추출
@@ -1842,9 +1772,7 @@ function formatVideoSearchResponse(result, query) {
         const title = video.title || video.video_name || '제목 없음';
         const timestamp = video.timestamp || 'N/A';
         const similarity = video.similarity ? (video.similarity * 100).toFixed(1) : '0.0';
-        const description = video.description || '설명 없음';
-        
-        response += `${index + 1}. **${title}** ${timestamp} | 유사도: ${similarity}% ${description}\n`;
+        response += `${index + 1}. **${title}** ${timestamp} | 유사도: ${similarity}%\n`;
     });
     
     console.log('✅ 최종 응답:', response);
