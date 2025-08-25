@@ -1,3 +1,9 @@
+-- 기존 테이블과 함수를 모두 삭제 (중복 방지)
+DROP TABLE IF EXISTS video_frames CASCADE;
+DROP FUNCTION IF EXISTS match_video_frames(VECTOR(512), INTEGER);
+DROP FUNCTION IF EXISTS match_video_frames(DOUBLE PRECISION[], INTEGER);
+DROP FUNCTION IF EXISTS match_video_frames(JSONB, INTEGER);
+
 -- 비디오 프레임 임베딩 테이블 생성
 CREATE TABLE video_frames (
     id BIGSERIAL PRIMARY KEY,
@@ -14,9 +20,9 @@ CREATE INDEX idx_video_frames_video_id ON video_frames(video_id);
 CREATE INDEX idx_video_frames_timestamp ON video_frames(frame_timestamp);
 CREATE INDEX idx_video_frames_embedding ON video_frames USING ivfflat (embedding vector_cosine_ops);
 
--- 유사도 검색을 위한 RPC 함수 생성
+-- 유사도 검색을 위한 RPC 함수 생성 (코사인 유사도 사용)
 CREATE OR REPLACE FUNCTION match_video_frames(
-    input_vector VECTOR(512),
+    input_vector DOUBLE PRECISION[],
     match_count INTEGER DEFAULT 5
 )
 RETURNS TABLE (
@@ -25,19 +31,17 @@ RETURNS TABLE (
     frame_timestamp DOUBLE PRECISION,
     similarity DOUBLE PRECISION
 )
-LANGUAGE plpgsql
+LANGUAGE sql
 AS $$
-BEGIN
-    RETURN QUERY
     SELECT 
         vf.video_id,
         vf.video_path,
         vf.frame_timestamp,
-        1 - (vf.embedding <=> input_vector) as similarity
+        (vf.embedding <=> input_vector::vector) AS similarity
     FROM video_frames vf
-    ORDER BY vf.embedding <=> input_vector
+    WHERE (vf.embedding <=> input_vector::vector) > 0.1
+    ORDER BY vf.embedding <=> input_vector::vector DESC
     LIMIT match_count;
-END;
 $$;
 
 -- 테이블에 RLS 정책 설정 (선택사항)

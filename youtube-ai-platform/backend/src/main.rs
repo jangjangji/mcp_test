@@ -457,9 +457,9 @@ fn parse_video_search_response(response: &str) -> Vec<serde_json::Value> {
                                 if timestamp.matches(':').count() == 2 {
                                     if let Ok(similarity) = similarity_str.parse::<f64>() {
                                         println!("📹 비디오 이름: {}, 시간: {}, 유사도: {}", video_name, timestamp, similarity);
-                                        
+                                    
                                         // 결과 객체 생성
-                                        let result = serde_json::json!({
+                                    let result = serde_json::json!({
                                             "video_name": video_name,
                                             "title": video_name,
                                             "timestamp": timestamp,
@@ -495,13 +495,13 @@ async fn transcript_extraction(State(state): State<AppState>, Json(payload): Jso
     
     // YouTube MCP 서버에 자막 추출 요청 (실제로는 구현 필요)
     JsonResponse(TranscriptResponse { 
-        success: true, 
+                success: true, 
         data: Some(serde_json::json!({
             "message": "자막 추출 기능은 아직 구현되지 않았습니다",  // 임시 메시지
             "video_url": payload.video_url
         })),
-        error: None
-    })
+                error: None
+            })
 }
 
 // 비디오 저장 함수
@@ -618,7 +618,7 @@ async fn upload_video(State(state): State<AppState>, mut multipart: Multipart) -
                         // 파일 생성
                         let mut file = match std::fs::File::create(&temp_video_path) {
                             Ok(file) => file,
-                            Err(e) => {
+        Err(e) => {
                                 println!("❌ 임시 파일 생성 실패: {}", e);
                                 has_error = true;
                                 break;
@@ -794,15 +794,15 @@ async fn trending_analysis(State(_state): State<AppState>, Json(payload): Json<T
     
     // YouTube MCP 서버에 트렌딩 분석 요청 (실제로는 구현 필요)
     JsonResponse(TrendingAnalysisResponse { 
-        success: true, 
+                success: true, 
         data: Some(serde_json::json!({
             "message": "트렌딩 분석 기능은 아직 구현되지 않았습니다",  // 임시 메시지
             "region": region,
             "max_results": max_results
         })),
-        error: None
-    })
-}
+                error: None
+            })
+        }
 
 // Static 파일을 동적으로 서빙하는 함수들
 async fn serve_static_file(path: &str) -> Result<axum::response::Response<String>, std::io::Error> {
